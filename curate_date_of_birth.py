@@ -91,3 +91,47 @@ def hes_op_date_of_birth(hes_op: DataFrame) -> DataFrame:
     )
 
     return date_of_birth_hes_op
+
+
+def hes_ae_date_of_birth(hes_ae: DataFrame) -> DataFrame:
+    """
+    Process the date of birth data from the HES-A&E (Accident and Emergency) table, ensuring distinct records.
+
+    The 'arrivalage_calc' column in HES-AE represents the age of the individual at the time of A&E arrival.
+    For those aged 1 year or more, these are in completed years, while those less than 1 year of age have
+    decimalised values. When converting age to date of birth, an upward adjustment of 0.5 years is applied
+    to those aged 1 year or more to approximate fractional ages.
+
+    Args:
+        hes_ae (DataFrame): DataFrame containing the HES-AE table data.
+
+    Returns:
+        DataFrame: Processed DataFrame with metadata added.
+    """
+    date_of_birth_hes_ae = (
+        hes_ae
+        .select(
+            'person_id',
+            f.col('arrivaldate').alias('record_date'),
+            f.col('arrivalage_calc').alias('age_at_arrival')
+        )
+        .distinct()
+        .withColumn(
+            'date_of_birth',
+            f.when(
+                f.col('age_at_arrival') < f.lit(1),
+                f.date_sub(f.col('record_date'), f.round(f.col('age_at_arrival') * 365.25).cast('integer'))
+            )
+            .when(
+                f.col('age_at_arrival') >= f.lit(1),
+                f.date_sub(
+                    f.col('record_date'),
+                    f.round((f.col('age_at_arrival') + 0.5) * 365.25).cast('integer')
+                )
+            )
+        )
+        .drop('age_at_arrival')
+        .withColumn('data_source', f.lit('hes_ae'))
+    )
+
+    return date_of_birth_hes_ae
