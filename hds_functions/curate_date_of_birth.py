@@ -1,4 +1,55 @@
 from pyspark.sql import functions as f
+from .table_management import load_table
+from .table_management import save_table
+
+def create_date_of_birth_multisource(table_multisource: str = 'date_of_birth_multisource', extraction_methods: List[str] = None):
+    """
+    Create a consolidated DataFrame containing date of birth data from multiple sources and save it to a table.
+
+    Args:
+        table_multisource (str, optional): The name of the table to save the consolidated data. Defaults to 'date_of_birth_multisource'.
+        extraction_methods (List[str], optional): List of methods for extracting date of birth data. Defaults to None.
+
+    Returns:
+        None
+    """
+    if extraction_methods is None:
+        extraction_methods = ['gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap']
+
+    # Extract date of birth data from multiple sources
+    date_of_birth_from_sources = [extract_date_of_birth(method) for method in extraction_methods]
+    date_of_birth_multisource = functools.reduce(DataFrame.unionByName, date_of_birth_from_sources)
+
+    # Save the consolidated data to a table
+    save_table(date_of_birth_multisource, table_multisource)
+
+
+def extract_date_of_birth(data_source: str) -> DataFrame:
+    """
+    Extract date of birth data based on the specified data source.
+
+    Args:
+        data_source (str): The data source to extract date of birth data from.
+            Allowed values are: 'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap'.
+
+    Returns:
+        DataFrame: DataFrame containing the extracted date of birth data from the selected source.
+            The DataFrame includes columns for person ID, record date, date of birth and data source.
+
+    """
+    if data_source == 'gdppr':
+        return gdppr_date_of_birth(load_table('gdppr', method='gdppr'))
+    elif data_source == 'hes_apc':
+        return hes_apc_date_of_birth(load_table('hes_apc', method='hes_apc'))
+    elif data_source == 'hes_op':
+        return hes_op_date_of_birth(load_table('hes_op', method='hes_op'))
+    elif data_source == 'hes_ae':
+        return hes_ae_date_of_birth(load_table('hes_ae', method='hes_ae'))
+    elif data_source == 'ssnap':
+        return ssnap_date_of_birth(load_table('ssnap', method='ssnap'))
+    else:
+        raise ValueError(f"Invalid data source: {data_source}")
+
 
 def gdppr_date_of_birth(gdppr: DataFrame) -> DataFrame:
     """
