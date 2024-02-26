@@ -1,6 +1,8 @@
 from pyspark.sql import functions as f
 from .table_management import load_table
 from .table_management import save_table
+from .date_functions import parse_date_instruction
+from .data_aggregation import first_row
 
 def create_date_of_birth_multisource(table_multisource: str = 'date_of_birth_multisource', extraction_methods: List[str] = None):
     """
@@ -222,3 +224,151 @@ def ssnap_date_of_birth(ssnap: DataFrame) -> DataFrame:
 
     return date_of_birth_ssnap
 
+
+def create_date_of_birth_individual(
+    table_multisource: str = 'date_of_birth_multisource',
+    table_individual: str = 'date_of_birth_individual',
+    min_record_date: str = '1900-01-01',
+    max_record_date: str = 'current_date()', 
+    min_date_of_birth: str = '1880-01-01', 
+    max_date_of_birth: str = 'current_date()',
+    data_source: List[str] = None,
+    priority_index: Dict[str, int] = {'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1},
+):
+    """
+    Wrapper function to create and save a table containing selected date of birth records for each individual.
+
+    Args:
+        table_multisource (str): Name of the multisource date of birth table.
+        table_individual (str): Name of the individual date of birth table to be created.
+        min_record_date (str, optional): Minimum record date to consider. Defaults to '1900-01-01'.
+        max_record_date (str, optional): Maximum record date to consider. Defaults to 'current_date()'.
+        min_date_of_birth (str, optional): Minimum date of birth to consider. Defaults to '1880-01-01'.
+        max_date_of_birth (str, optional): Maximum date of birth to consider. Defaults to 'current_date()'.
+        data_source (List[str], optional): List of allowed data sources to consider when selecting date of birth records. 
+            If specified, only records from the specified data sources will be included in the selection process. 
+            If None, records from all available data sources will be considered. 
+            Defaults to None.
+        priority_index (Dict[str, int], optional): Priority index mapping data sources to priority levels.
+            Sources not specified in the mapping will have a default priority level of 0.
+            Defaults to {'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1}.
+    """
+
+    # Load multisource date of birth table
+    date_of_birth_multisource = load_table(table_multisource)
+
+    # Select individual date of birth records
+    date_of_birth_individual = date_of_birth_record_selection(
+        date_of_birth_multisource,
+        min_record_date=min_record_date,
+        max_record_date=max_record_date,
+        min_date_of_birth=min_date_of_birth,
+        max_date_of_birth=max_date_of_birth,
+        data_source=data_source,
+        priority_index=priority_index
+    )
+
+    # Save individual date of birth table
+    save_table(date_of_birth_individual, table_individual)
+
+
+def date_of_birth_record_selection(
+    date_of_birth_multisource: DataFrame,
+    min_record_date: str = '1900-01-01',
+    max_record_date: str = 'current_date()', 
+    min_date_of_birth: str = '1880-01-01', 
+    max_date_of_birth: str = 'current_date()',
+    data_source: List[str] = None,
+    priority_index: Dict[str, int] = {'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1},
+) -> DataFrame:
+    """
+    Selects a single record for each individual from the multisource date of birth DataFrame based on specified criteria.
+
+    Args:
+        date_of_birth_multisource (DataFrame): DataFrame containing date of birth data from multiple sources.
+        min_record_date (str, optional): Minimum record date to consider. Defaults to '1900-01-01'.
+        max_record_date (str, optional): Maximum record date to consider. Defaults to 'current_date()'.
+        min_date_of_birth (str, optional): Minimum date of birth to consider. Defaults to '1880-01-01'.
+        max_date_of_birth (str, optional): Maximum date of birth to consider. Defaults to 'current_date()'.
+        data_source (List[str], optional): List of allowed data sources to consider when selecting date of birth records. 
+            If specified, only records from the specified data sources will be included in the selection process. 
+            If None, records from all available data sources will be considered. 
+            Defaults to None.
+        priority_index (Dict[str, int], optional): Priority index mapping data sources to priority levels.
+            Sources not specified in the mapping will have a default priority level of 0.
+            Defaults to {'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1}.
+
+    Returns:
+        DataFrame: DataFrame containing the selected date of birth records for each individual.
+    """
+
+    # Filter out anomalous records
+    date_of_birth_multisource = (
+        date_of_birth_multisource
+        .filter(
+            (f.expr('date_of_birth IS NOT NULL'))
+            & (f.expr('record_date IS NOT NULL'))
+            & (f.expr('record_date >= date_of_birth'))
+        )
+    )
+
+    # Apply date restrictions
+    if min_record_date is not None:
+        date_of_birth_multisource = (
+            date_of_birth_multisource
+            .withColumn('min_record_date', f.expr(parse_date_instruction(min_record_date)))
+            .filter(f.expr('(record_date >= min_record_date)'))
+        )
+    
+    if max_record_date is not None:
+        date_of_birth_multisource = (
+            date_of_birth_multisource
+            .withColumn('max_record_date', f.expr(parse_date_instruction(max_record_date)))
+            .filter(f.expr('(record_date <= max_record_date)'))
+        )
+
+    if min_date_of_birth is not None:
+        date_of_birth_multisource = (
+            date_of_birth_multisource
+            .withColumn('min_date_of_birth', f.expr(parse_date_instruction(min_date_of_birth)))
+            .filter(f.expr('(date_of_birth >= min_date_of_birth)'))
+        )
+
+    if max_date_of_birth is not None:
+        date_of_birth_multisource = (
+            date_of_birth_multisource
+            .withColumn('max_date_of_birth', f.expr(parse_date_instruction(max_date_of_birth)))
+            .filter(f.expr('(date_of_birth <= max_date_of_birth)'))
+        )
+
+    # Apply data source restrictions
+    if data_source is not None:
+        date_of_birth_multisource = (
+            date_of_birth_multisource
+            .filter(f.col('data_source').isin(data_source))
+        )
+
+    # Map source priority
+    date_of_birth_multisource = (
+        date_of_birth_multisource
+        .transform(map_column_values, map_dict = priority_index, column = 'data_source', new_column = 'source_priority')
+        .fillna({'source_priority': 0})
+    )
+
+    # Select record for each individual based on source priority and recency rules
+    date_of_birth_individual = (
+        date_of_birth_multisource
+        .transform(
+            first_row,
+            partition_by = ['person_id'],
+            order_by = [f.col('source_priority').desc(), f.col('record_date').desc(), 'data_source', 'date_of_birth']
+        )
+    )
+
+    # Select columns
+    date_of_birth_individual = (
+        date_of_birth_individual
+        .select('person_id', 'date_of_birth', 'record_date', 'data_source')
+    )
+
+    return date_of_birth_individual
