@@ -135,3 +135,39 @@ def hes_ae_date_of_birth(hes_ae: DataFrame) -> DataFrame:
     )
 
     return date_of_birth_hes_ae
+
+
+def ssnap_date_of_birth(ssnap: DataFrame) -> DataFrame:
+    """
+    Process the date of birth data from the SSNAP (Sentinel Stroke National Audit Programme) table, ensuring distinct
+    records.
+
+    The 's1ageonarrival' column in SSNAP records the age of the individual at the time of arrival to the hospital.
+    While this column is an integer, it represents completed years. Therefore, an upward adjustment of 0.5 years
+    is applied to approximate fractional ages.
+
+    Args:
+        ssnap (DataFrame): DataFrame containing the SSNAP table data.
+
+    Returns:
+        DataFrame: Processed DataFrame with metadata added.
+    """
+
+    date_of_birth_ssnap = (
+        ssnap
+        .select(
+            'person_id',
+            f.to_date('s1firstarrivaldatetime').alias('record_date'),
+            f.col('s1ageonarrival').alias('age_on_arrival')
+        )
+        .distinct()
+        .withColumn(
+            'date_of_birth',
+            f.date_sub(f.col('record_date'), f.round((f.col('age_on_arrival') + 0.5)*365.25).cast('integer'))
+        )
+        .drop('age_on_arrival')
+        .withColumn('data_source', f.lit('ssnap'))
+    )
+
+    return date_of_birth_ssnap
+
