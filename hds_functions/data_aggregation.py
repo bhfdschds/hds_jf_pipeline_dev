@@ -9,11 +9,12 @@ Functions:
 """
 
 from pyspark.sql import functions as f
+from pyspark.sql import DataFrame
 from pyspark.sql import Window
 
 def first_row(
     df, n = 1, partition_by = None, order_by = None, return_row_index = False, row_index_name = 'row_index'
-):
+) -> DataFrame:
     """
     Select the first 'n' rows for each partition in a PySpark DataFrame, optionally retaining the row indices.
 
