@@ -1,10 +1,12 @@
 from pyspark.sql import functions as f
+from pyspark.sql import DataFrame
+from typing import List, Dict
 from .table_management import load_table
 from .table_management import save_table
 from .date_functions import parse_date_instruction
 from .data_aggregation import first_row
 
-def create_date_of_birth_multisource(table_multisource: str = 'date_of_birth_multisource', extraction_methods: List[str] = None):
+def create_date_of_birth_multisource(table_multisource: str = 'date_of_birth_multisource', extraction_methods: List[str] = None) -> None:
     """
     Create a consolidated DataFrame containing date of birth data from multiple sources and save it to a table.
 
