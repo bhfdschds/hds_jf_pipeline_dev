@@ -231,3 +231,134 @@ def ssnap_sex(ssnap: DataFrame) -> DataFrame:
 
     return sex_ssnap
 
+
+def create_sex_individual(
+    table_multisource: str = 'sex_multisource',
+    table_individual: str = 'sex_individual',
+    min_record_date: str = '1900-01-01',
+    max_record_date: str = 'current_date()', 
+    data_source: List[str] = None,
+    priority_index: Dict[str, int] = {'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1},
+):
+    """
+    Wrapper function to create and save a table containing selected sex records for each individual.
+
+    Args:
+        table_multisource (str): Name of the multisource sex table.
+        table_individual (str): Name of the individual sex table to be created.
+        min_record_date (str, optional): Minimum record date to consider. Defaults to '1900-01-01'.
+        max_record_date (str, optional): Maximum record date to consider. Defaults to 'current_date()'.
+        data_source (List[str], optional): List of allowed data sources to consider when selecting sex records. 
+            If specified, only records from the specified data sources will be included in the selection process. 
+            If None, records from all available data sources will be considered. 
+            Defaults to None.
+        priority_index (Dict[str, int], optional): Priority index mapping data sources to priority levels.
+            Sources not specified in the mapping will have a default priority level of 0.
+            Defaults to {'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1}.
+    """
+
+    # Load multisource sex table
+    sex_multisource = load_table(table_multisource)
+
+    # Select individual sex records
+    sex_individual = sex_record_selection(
+        sex_multisource,
+        min_record_date=min_record_date,
+        max_record_date=max_record_date,
+        data_source=data_source,
+        priority_index=priority_index
+    )
+
+    # Save individual sex table
+    save_table(sex_individual, table_individual)
+
+
+def sex_record_selection(
+    sex_multisource: DataFrame,
+    min_record_date: str = '1900-01-01',
+    max_record_date: str = 'current_date()', 
+    data_source: List[str] = None,
+    priority_index: Dict[str, int] = {'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1},
+) -> DataFrame:
+    """
+    Selects a single record for each individual from the multisource sex DataFrame based on specified criteria.
+
+    Args:
+        sex_multisource (DataFrame): DataFrame containing sex data from multiple sources.
+        min_record_date (str, optional): Minimum record date to consider. Defaults to '1900-01-01'.
+        max_record_date (str, optional): Maximum record date to consider. Defaults to 'current_date()'.
+        data_source (List[str], optional): List of allowed data sources to consider when selecting sex records. 
+            If specified, only records from the specified data sources will be included in the selection process. 
+            If None, records from all available data sources will be considered. 
+            Defaults to None.
+        priority_index (Dict[str, int], optional): Priority index mapping data sources to priority levels.
+            Sources not specified in the mapping will have a default priority level of 0.
+            Defaults to {'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1}.
+
+    Returns:
+        DataFrame: DataFrame containing the selected sex records for each individual.
+    """
+
+    # Validate data_source argument
+    if data_source is not None:
+        assert isinstance(data_source, list), "data_source must be a list."
+        assert data_source is None or data_source, "data_source cannot be an empty list."
+        allowed_sources = {'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap'}
+        invalid_sources = [str(source) for source in data_source if source not in allowed_sources or not isinstance(source, str)]
+        assert not invalid_sources, f"Invalid data sources: {invalid_sources}. Allowed sources are: {allowed_sources}."
+
+    # Filter out anomalous records
+    sex_multisource = (
+        sex_multisource
+        .filter(
+            (f.expr('sex IS NOT NULL'))
+            & (f.expr('record_date IS NOT NULL'))
+        )
+    )
+
+    # Apply date restrictions
+    if min_record_date is not None:
+        sex_multisource = (
+            sex_multisource
+            .withColumn('min_record_date', f.expr(parse_date_instruction(min_record_date)))
+            .filter(f.expr('(record_date >= min_record_date)'))
+        )
+    
+    if max_record_date is not None:
+        sex_multisource = (
+            sex_multisource
+            .withColumn('max_record_date', f.expr(parse_date_instruction(max_record_date)))
+            .filter(f.expr('(record_date <= max_record_date)'))
+        )
+
+    # Apply data source restrictions
+    if data_source is not None:
+        sex_multisource = (
+            sex_multisource
+            .filter(f.col('data_source').isin(data_source))
+        )
+
+    # Map source priority
+    sex_multisource = (
+        sex_multisource
+        .transform(map_column_values, map_dict = priority_index, column = 'data_source', new_column = 'source_priority')
+        .fillna({'source_priority': 0})
+    )
+
+    # Select record for each individual based on source priority and recency rules
+    sex_individual = (
+        sex_multisource
+        .transform(
+            first_row,
+            partition_by = ['person_id'],
+            order_by = [f.col('source_priority').desc(), f.col('record_date').desc(), 'data_source', 'sex', 'sex_code']
+        )
+    )
+
+    # Select columns
+    sex_individual = (
+        sex_individual
+        .select('person_id', 'sex', 'sex_code', 'record_date', 'data_source')
+    )
+
+    return sex_individual
