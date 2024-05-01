@@ -6,6 +6,7 @@ from .table_management import load_table
 from .table_management import save_table
 from .date_functions import parse_date_instruction
 from .data_aggregation import first_row
+from .data_wrangling import map_column_values
 
 def create_sex_multisource(table_multisource: str = 'sex_multisource', extraction_methods: List[str] = None) -> None:
     """
