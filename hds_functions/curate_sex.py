@@ -1,5 +1,6 @@
 from pyspark.sql import functions as f
 from pyspark.sql import DataFrame
+from functools import reduce
 from typing import List, Dict
 from .table_management import load_table
 from .table_management import save_table
@@ -22,7 +23,7 @@ def create_sex_multisource(table_multisource: str = 'sex_multisource', extractio
 
     # Extract sex data from multiple sources
     sex_from_sources = [extract_sex(method) for method in extraction_methods]
-    sex_multisource = functools.reduce(DataFrame.unionByName, sex_from_sources)
+    sex_multisource = reduce(DataFrame.unionByName, sex_from_sources)
 
     # Save the consolidated data to a table
     save_table(sex_multisource, table_multisource)
