@@ -1,10 +1,12 @@
 from pyspark.sql import functions as f
 from pyspark.sql import DataFrame
+from functools import reduce
 from typing import List, Dict
 from .table_management import load_table
 from .table_management import save_table
 from .date_functions import parse_date_instruction
 from .data_aggregation import first_row
+from .data_wrangling import map_column_values
 
 def create_date_of_birth_multisource(table_multisource: str = 'date_of_birth_multisource', extraction_methods: List[str] = None) -> None:
     """
@@ -22,7 +24,7 @@ def create_date_of_birth_multisource(table_multisource: str = 'date_of_birth_mul
 
     # Extract date of birth data from multiple sources
     date_of_birth_from_sources = [extract_date_of_birth(method) for method in extraction_methods]
-    date_of_birth_multisource = functools.reduce(DataFrame.unionByName, date_of_birth_from_sources)
+    date_of_birth_multisource = reduce(DataFrame.unionByName, date_of_birth_from_sources)
 
     # Save the consolidated data to a table
     save_table(date_of_birth_multisource, table_multisource)

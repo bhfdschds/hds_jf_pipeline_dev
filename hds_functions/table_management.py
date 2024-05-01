@@ -12,7 +12,7 @@ Functions:
 import pyspark.sql.functions as f
 from pyspark.sql import DataFrame
 from .json_utils import read_json_file
-from .spark_session import get_spark_session
+from .environment_utils import get_spark_session
 from .data_wrangling import clean_column_names
 
 def load_table(table: str, table_directory: str = None, method: str = None) -> DataFrame:
@@ -35,7 +35,7 @@ def load_table(table: str, table_directory: str = None, method: str = None) -> D
 
     # Load table directory from JSON file
     if table_directory is None:
-        table_directory = read_json_file('config/table_directory.json')
+        table_directory = read_json_file('./config/table_directory.json')
     elif isinstance(table_directory, str):
         table_directory = read_json_file(table_directory)
     else:
@@ -87,7 +87,7 @@ def save_table(df, table:str, table_directory = None) -> None:
     """
     # Load table directory from JSON file
     if table_directory is None:
-        table_directory = read_json_file('config/table_directory.json')
+        table_directory = read_json_file('./config/table_directory.json')
     elif isinstance(table_directory, str):
         table_directory = read_json_file(table_directory)
     else:
