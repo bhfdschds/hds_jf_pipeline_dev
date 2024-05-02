@@ -90,3 +90,49 @@ def write_csv_file(df: DataFrame, path: str, repo: str = None, index: bool = Fal
         df.toPandas().to_csv(resolved_path, index=index, **kwargs)
     except Exception as e:
         raise IOError(f"Error writing DataFrame to CSV file: {str(e)}")
+
+
+def create_dict_from_csv(path: str, key_column: str, value_columns: list, retain_column_names: bool = False, repo: str = None) -> dict:
+    """
+    Reads a .csv file and creates a dictionary based on specified columns for the key and value(s).
+
+    Args:
+    - path (str): Path to the .csv file. Can be an absolute path, a relative path with './', or a path within a repo.
+    - key_column (str): The column name to be used as keys in the dictionary.
+    - value_columns (list of str): A list of column names to be used as values in the dictionary.
+    - retain_column_names (bool, optional): If True, retains the column names of value_columns as keys in a sub dictionary.
+        Defaults to False.
+    - repo (str): Name of the repo if the path is relative within a repo.
+
+    Returns:
+    - dict: A dictionary with keys from the specified key_column and corresponding values from value_columns.
+
+    Raises:
+    - ValueError: If the key column is not unique in the CSV file.
+
+    Example:
+        >>> result = csv_to_dict('./data.csv', 'Name', ['Age', 'Gender'], retain_column_names=False)
+        >>> print(result)
+        {'John': ['30', 'Male'], 'Alice': ['25', 'Female']}
+        >>> result = csv_to_dict('./data.csv', 'Name', ['Age', 'Gender'], retain_column_names=True)
+        >>> print(result)
+        {'John': {'Age': '30', 'Gender': 'Male'}, 'Alice': {'Age': '25', 'Gender': 'Female'}}
+    """
+    # Resolve the path
+    resolved_path = resolve_path(path, repo)
+
+    # Read table
+    df = pd.read_csv(resolved_path)
+    
+    # Check if the key column is unique
+    if not df[key_column].is_unique:
+        raise ValueError("Key column '{}' is not unique".format(key_column))
+    
+    result_dict = {}
+    for index, row in df.iterrows():
+        key = row[key_column]
+        values = {col: row[col] for col in value_columns}
+        if not retain_column_names:
+            values = list(values.values())
+        result_dict[key] = values
+    return result_dict
