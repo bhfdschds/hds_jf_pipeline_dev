@@ -92,16 +92,17 @@ def write_csv_file(df: DataFrame, path: str, repo: str = None, index: bool = Fal
         raise IOError(f"Error writing DataFrame to CSV file: {str(e)}")
 
 
-def create_dict_from_csv(path: str, key_column: str, value_columns: list, retain_column_names: bool = False, repo: str = None) -> dict:
+def create_dict_from_csv(path: str, key_column: str, value_columns, retain_column_names: bool = False, cast_key_as_string: bool = True, repo: str = None) -> dict:
     """
     Reads a .csv file and creates a dictionary based on specified columns for the key and value(s).
 
     Args:
     - path (str): Path to the .csv file. Can be an absolute path, a relative path with './', or a path within a repo.
     - key_column (str): The column name to be used as keys in the dictionary.
-    - value_columns (list of str): A list of column names to be used as values in the dictionary.
+    - value_columns (list of str or str): A list of column names or a single column name to be used as values in the dictionary.
     - retain_column_names (bool, optional): If True, retains the column names of value_columns as keys in a sub dictionary.
         Defaults to False.
+    - cast_key_as_string (bool, optional): If True, casts the key as a string. Defaults to True.
     - repo (str): Name of the repo if the path is relative within a repo.
 
     Returns:
@@ -118,6 +119,9 @@ def create_dict_from_csv(path: str, key_column: str, value_columns: list, retain
         >>> print(result)
         {'John': {'Age': '30', 'Gender': 'Male'}, 'Alice': {'Age': '25', 'Gender': 'Female'}}
     """
+    if isinstance(value_columns, str):  # Convert to list if input is a string
+        value_columns = [value_columns]
+    
     # Resolve the path
     resolved_path = resolve_path(path, repo)
 
@@ -130,9 +134,11 @@ def create_dict_from_csv(path: str, key_column: str, value_columns: list, retain
     
     result_dict = {}
     for index, row in df.iterrows():
-        key = row[key_column]
+        key = str(row[key_column]) if cast_key_as_string else row[key_column]
         values = {col: row[col] for col in value_columns}
-        if not retain_column_names:
-            values = list(values.values())
+        if len(value_columns) == 1:  # If only one value column is provided
+            values = next(iter(values.values()))  # Extract the single value
+        elif not retain_column_names:
+            values = list(values.values())  # If multiple value columns but retain_column_names is False
         result_dict[key] = values
     return result_dict
