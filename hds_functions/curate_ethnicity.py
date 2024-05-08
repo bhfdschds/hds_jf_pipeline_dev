@@ -1,10 +1,12 @@
 from pyspark.sql import functions as f
 from pyspark.sql import DataFrame
+from functools import reduce
 from typing import List, Dict
-from .table_management import load_table
-from .table_management import save_table
+from .table_management import load_table, save_table
 from .date_functions import parse_date_instruction
 from .data_aggregation import first_row
+from .data_wrangling import map_column_values
+from .csv_utils import read_csv_file, create_dict_from_csv
 
 def create_ethnicity_multisource(table_multisource: str = 'ethnicity_multisource', extraction_methods: List[str] = None) -> None:
     """
@@ -22,7 +24,7 @@ def create_ethnicity_multisource(table_multisource: str = 'ethnicity_multisource
 
     # Extract ethnicity data from multiple sources
     ethnicity_from_sources = [extract_ethnicity(method) for method in extraction_methods]
-    ethnicity_multisource = functools.reduce(DataFrame.unionByName, ethnicity_from_sources)
+    ethnicity_multisource = reduce(DataFrame.unionByName, ethnicity_from_sources)
 
     # Save the consolidated data to a table
     save_table(ethnicity_multisource, table_multisource)
@@ -339,7 +341,7 @@ def create_ethnicity_individual(
     max_record_date: str = 'current_date()', 
     data_source: List[str] = None,
     ethnicity_19_null_codes: List[str] = ['', 'X', 'Z', '99'],
-    priority_index: Dict[str, int] = {'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1},
+    priority_index: Dict[str, int] = {'gdppr_snomed': 4, 'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1},
 ):
     """
     Wrapper function to create and save a table containing selected ethnicity records for each individual.
@@ -356,7 +358,7 @@ def create_ethnicity_individual(
         ethnicity_19_null_codes (List[str], optional): List of indeterminate ethnicity_19 codes that will be removed from selection.  
         priority_index (Dict[str, int], optional): Priority index mapping data sources to priority levels.
             Sources not specified in the mapping will have a default priority level of 0.
-            Defaults to {'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1}.
+            Defaults to {'gdppr_snomed': 4, 'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1}.
     """
 
     # Load multisource ethnicity table
