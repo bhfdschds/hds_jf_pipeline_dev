@@ -112,30 +112,31 @@ def standardise_table(df, method):
     - Cleaning Column Names: Standardise column names by converting them to lowercase and replacing spaces with underscores.
 
     Args:
-        df (pyspark.sql.DataFrame): The DataFrame to be standardized.
+        df (pyspark.sql.DataFrame): The DataFrame to be standardised.
         method (str): The method used for standardization. Valid methods include: 
-                      'deaths', 'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap'.
+            'deaths', 'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap', 'vaccine_status'.
 
     Returns:
-        pyspark.sql.DataFrame: The standardized DataFrame.
+        pyspark.sql.DataFrame: The standardised DataFrame.
     """
-    if method == 'deaths':
-        return(standardise_deaths_table(df))
-    elif method == 'gdppr':
-        return(standardise_gdppr_table(df))
-    elif method == 'hes_apc':
-        return(standardise_hes_apc_table(df))
-    elif method == 'hes_op':
-        return(standardise_hes_op_table(df))
-    elif method == 'hes_ae':
-        return(standardise_hes_ae_table(df))
-    elif method == 'ssnap':
-        return(standardise_ssnap_table(df))
-    else:
+
+    method_functions = {
+        'deaths': standardise_deaths_table,
+        'gdppr': standardise_gdppr_table,
+        'hes_apc': standardise_hes_apc_table,
+        'hes_op': standardise_hes_op_table,
+        'hes_ae': standardise_hes_ae_table,
+        'ssnap': standardise_ssnap_table,
+        'vaccine_status': standardise_vaccine_status_table
+    }
+    
+    if method not in method_functions:
         raise ValueError(
-            f"'{method}' is not a recognized standardize_table method. "
-            f"Available methods: deaths, gdppr, hes_apc, hes_op, hes_ae, ssnap"
+            f"'{method}' is not a recognised standardise_table method. "
+            f"Available methods: deaths, gdppr, hes_apc, hes_op, hes_ae, ssnap, vaccine_status"
         )
+    
+    return method_functions[method](df)
 
 
 def standardise_deaths_table(df):
@@ -187,4 +188,14 @@ def standardise_ssnap_table(df):
         df
         .withColumnRenamed('Person_ID_DEID', 'person_id')
         .transform(clean_column_names)
+    )
+
+def standardise_vaccine_status_table(df):
+    return(
+        df
+        .withColumnRenamed('PERSON_ID_DEID', 'person_id')
+        .transform(clean_column_names)
+        .withColumn('recorded_date', f.to_date(f.col('recorded_date'), 'yyyyMMdd'))
+        .withColumn('expiry_date', f.to_date(f.col('expiry_date'), 'yyyyMMdd'))
+        .withColumn('date_and_time', f.to_timestamp(f.col('date_and_time'), "yyyyMMdd'T'HHmmssSS"))
     )
