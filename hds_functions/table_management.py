@@ -6,11 +6,13 @@ This module provides functions for managing tables within a PySpark environment.
 Functions:
 - load_table: Load a table from Spark, optionally filtering by archive date and standardising the columns.
 - save_table: Save a DataFrame to a database table.
+- get_archive_versions: Get list of unique archive versions
 - standardise_table: Standardise the DataFrame according to the specified method, including renaming person ID variables,
     formatting dates into yyyy-MM-dd format, and cleaning column names.
 """
 import pyspark.sql.functions as f
 from pyspark.sql import DataFrame
+from typing import List
 from .json_utils import read_json_file
 from .environment_utils import get_spark_session
 from .data_wrangling import clean_column_names
@@ -47,7 +49,14 @@ def load_table(table: str, table_directory: str = None, method: str = None) -> D
     # Read parameters from table_directory
     database = table_directory[table]['database']
     table_name = table_directory[table]['table_name']
-    archive_date = table_directory[table]['archive_date']
+    archive_date = table_directory[table].get('archive_date', None)
+    max_archive_date = table_directory[table].get('max_archive_date', None)
+
+    # Assert that only one archive version filter is specified, if any
+    assert (archive_date is None and max_archive_date is None) or \
+       (archive_date is not None and max_archive_date is None) or \
+       (archive_date is None and max_archive_date is not None), \
+       "Only one of 'archive_date' or 'max_archive_date' can be specified."
 
     # Get spark session
     spark = get_spark_session() 
@@ -65,6 +74,8 @@ def load_table(table: str, table_directory: str = None, method: str = None) -> D
         df = df.filter(f.col('archived_on') == f.lit(max_archive_date))
     elif archive_date is not None:
         df = df.filter(f.col('archived_on') == f.lit(archive_date))
+    elif max_archive_date is not None:
+        df = df.filter(f.col('archived_on') <= f.lit(archive_date))
 
     # Standardise table
     if method is not None:
@@ -73,7 +84,7 @@ def load_table(table: str, table_directory: str = None, method: str = None) -> D
     return df
 
 
-def save_table(df, table:str, table_directory = None) -> None:
+def save_table(df, table: str, table_directory=None, partition_by=None) -> None:
     """
     Saves a DataFrame to a database table.
 
@@ -81,6 +92,7 @@ def save_table(df, table:str, table_directory = None) -> None:
         df (pyspark.sql.DataFrame): The DataFrame to be saved.
         table (str): The name of the table to save.
         table_directory (str): Path to the JSON file containing table directories.
+        partition_by (str or list[str], optional): Columns to partition by.
 
     Returns:
         None
@@ -96,13 +108,42 @@ def save_table(df, table:str, table_directory = None) -> None:
     # Check table key exists
     assert table in table_directory.keys(), f"Table key '{table}' not found in table_directory"
 
+    # Ensure partition_by is either a string or a list of strings
+    assert partition_by is None or isinstance(partition_by, str) or all(isinstance(col, str) for col in partition_by), \
+        "partition_by should be a string or a list of strings."
+
     # Read parameters from table_directory
     database = table_directory[table]['database']
     table_name = table_directory[table]['table_name']
 
     # Write table to database
-    df.write.mode('overwrite').option('overwriteSchema', 'True').saveAsTable(f"{database}.{table_name}")
+    if partition_by is not None:
+        if isinstance(partition_by, str):
+            partition_by = [partition_by]  # Convert string to list
+        df.write.mode('overwrite').option('overwriteSchema', 'true').partitionBy(*partition_by).saveAsTable(f"{database}.{table_name}")
 
+    else:
+        df.write.mode('overwrite').option('overwriteSchema', 'True').saveAsTable(f"{database}.{table_name}")
+
+
+def get_archive_versions(df: DataFrame, version_column: str = 'archived_on') -> List[str]:
+    """
+    Get distinct version archive dates from the DataFrame.
+
+    Parameters:
+        df (DataFrame): The input DataFrame.
+        version_column (str): The name of the column containing version information. Default is 'archived_on'.
+
+    Returns:
+        list[str]: A list of distinct archive versions.
+    """
+    return list(
+        df
+        .select(f.col(version_column).cast('string'))  
+        .distinct()  
+        .orderBy(version_column) 
+        .toPandas()[version_column] 
+    )
 
 def standardise_table(df, method):
     """
