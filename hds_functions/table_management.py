@@ -66,16 +66,16 @@ def load_table(table: str, table_directory: str = None, method: str = None) -> D
 
     # Filter for archive date
     if archive_date == 'latest':
-        max_archive_date = (
+        archive_date_max = (
             df
             .agg(f.max('archived_on').alias('_max_archive_date'))
             .collect()[0][0]
         )
-        df = df.filter(f.col('archived_on') == f.lit(max_archive_date))
+        df = df.filter(f.col('archived_on') == f.lit(archive_date_max))
     elif archive_date is not None:
         df = df.filter(f.col('archived_on') == f.lit(archive_date))
     elif max_archive_date is not None:
-        df = df.filter(f.col('archived_on') <= f.lit(archive_date))
+        df = df.filter(f.col('archived_on') <= f.lit(max_archive_date))
 
     # Standardise table
     if method is not None:
