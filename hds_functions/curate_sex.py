@@ -1,11 +1,9 @@
-from pyspark.sql import functions as f
-from pyspark.sql import DataFrame
+from pyspark.sql import functions as f, DataFrame, Window
 from functools import reduce
 from typing import List, Dict
-from .table_management import load_table
-from .table_management import save_table
+from .table_management import load_table, save_table
 from .date_functions import parse_date_instruction
-from .data_aggregation import first_row
+from .data_aggregation import first_row, first_dense_rank
 from .data_wrangling import map_column_values
 
 def create_sex_multisource(table_multisource: str = 'sex_multisource', extraction_methods: List[str] = None) -> None:
@@ -30,7 +28,7 @@ def create_sex_multisource(table_multisource: str = 'sex_multisource', extractio
     save_table(sex_multisource, table_multisource)
 
 
-def extract_sex(data_source: str) -> DataFrame:
+def extract_sex(extract_method: str) -> DataFrame:
     """
     Extract sex data based on the specified data source.
 
@@ -44,38 +42,63 @@ def extract_sex(data_source: str) -> DataFrame:
 
     """
 
-    extraction_functions = {
-        'gdppr': gdppr_sex,
-        'hes_apc': hes_apc_sex,
-        'hes_op': hes_op_sex,
-        'hes_ae': hes_ae_sex,
-        'ssnap': ssnap_sex
+    extraction_methods = {
+        'gdppr': {
+            'extraction_function': gdppr_sex,
+            'data_source': 'gdppr_demographics',
+            'load_method': None
+        },
+        'hes_apc': {
+            'extraction_function': hes_apc_sex,
+            'data_source': 'hes_apc',
+            'load_method': 'hes_apc'
+        },
+        'hes_op': {
+            'extraction_function': hes_op_sex,
+            'data_source': 'hes_op',
+            'load_method': 'hes_op'
+        },
+        'hes_ae': {
+            'extraction_function': hes_ae_sex,
+            'data_source': 'hes_ae',
+            'load_method': 'hes_ae'
+        },
+        'ssnap': {
+            'extraction_function': ssnap_sex,
+            'data_source': 'ssnap',
+            'load_method': 'ssnap'
+        }
     }
 
-    if data_source not in extraction_functions:
-        raise ValueError(f"Invalid data source: {data_source}. Allowed values are: 'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap'.")
+    if extract_method not in extraction_methods:
+        raise ValueError(f"Invalid extract_method: {extract_method}. Allowed values are: 'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap'.")
 
-    return extraction_functions[data_source](load_table(data_source, method=data_source))
+    return extraction_methods[extract_method]['extraction_function'](
+        load_table(
+            table=extraction_methods[extract_method]['data_source'],
+            method=extraction_methods[extract_method]['load_method']
+        )
+    )
 
-
-def gdppr_sex(gdppr: DataFrame) -> DataFrame:
+def gdppr_sex(gdppr_demographics: DataFrame) -> DataFrame:
     """
     Process the sex data from the GDPPR table, ensuring distinct records and mapping sex codes to categories.
 
     Args:
-        gdppr (DataFrame): DataFrame containing the GDPPR table data.
+        gdppr_demographics (DataFrame): DataFrame containing GDPPR demographics data.
 
     Returns:
         DataFrame: Processed DataFrame with metadata added.
     """
 
     sex_gdppr = (
-        gdppr
+        gdppr_demographics
         .select(
             'person_id',
             f.col('reporting_period_end_date').alias('record_date'),
             f.col('sex').alias('sex_code')
         )
+        .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL) AND (sex_code IS NOT NULL)")
         .distinct()
         .withColumn('sex', f.col('sex_code'))
         .replace(
@@ -111,6 +134,7 @@ def hes_apc_sex(hes_apc: DataFrame) -> DataFrame:
             f.col('epistart').alias('record_date'),
             f.col('sex').alias('sex_code')
         )
+        .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL) AND (sex_code IS NOT NULL)")
         .distinct()
         .withColumn('sex', f.col('sex_code'))
         .replace(
@@ -147,6 +171,7 @@ def hes_op_sex(hes_op: DataFrame) -> DataFrame:
             f.col('apptdate').alias('record_date'),
             f.col('sex').alias('sex_code')
         )
+        .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL) AND (sex_code IS NOT NULL)")
         .distinct()
         .withColumn('sex', f.col('sex_code'))
         .replace(
@@ -182,6 +207,7 @@ def hes_ae_sex(hes_ae: DataFrame) -> DataFrame:
             f.col('arrivaldate').alias('record_date'),
             f.col('sex').alias('sex_code')
         )
+        .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL) AND (sex_code IS NOT NULL)")
         .distinct()
         .withColumn('sex', f.col('sex_code'))
         .replace(
@@ -219,6 +245,7 @@ def ssnap_sex(ssnap: DataFrame) -> DataFrame:
             f.to_date('s1firstarrivaldatetime').alias('record_date'),
             f.col('s1gender').alias('sex_code')
         )
+        .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL) AND (sex_code IS NOT NULL)")
         .distinct()
         .withColumn('sex', f.col('sex_code'))
         .replace(
@@ -240,8 +267,8 @@ def create_sex_individual(
     min_record_date: str = '1900-01-01',
     max_record_date: str = 'current_date()', 
     data_source: List[str] = None,
-    priority_index: Dict[str, int] = {'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1},
-):
+    priority_index: Dict[str, int] = {'gdppr': 1, 'hes_apc': 2, 'hes_op': 3, 'hes_ae': 3},
+) -> None:
     """
     Wrapper function to create and save a table containing selected sex records for each individual.
 
@@ -254,9 +281,8 @@ def create_sex_individual(
             If specified, only records from the specified data sources will be included in the selection process. 
             If None, records from all available data sources will be considered. 
             Defaults to None.
-        priority_index (Dict[str, int], optional): Priority index mapping data sources to priority levels.
-            Sources not specified in the mapping will have a default priority level of 0.
-            Defaults to {'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1}.
+        priority_index (Dict[str, int], optional): Priority mapping for data sources; lower indices are prioritised.
+            Defaults to {'gdppr': 1, 'hes_apc': 2, 'hes_op': 3, 'hes_ae': 3}.
     """
 
     # Load multisource sex table
@@ -280,7 +306,7 @@ def sex_record_selection(
     min_record_date: str = '1900-01-01',
     max_record_date: str = 'current_date()', 
     data_source: List[str] = None,
-    priority_index: Dict[str, int] = {'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1},
+    priority_index: Dict[str, int] = {'gdppr': 1, 'hes_apc': 2, 'hes_op': 3, 'hes_ae': 3},
 ) -> DataFrame:
     """
     Selects a single record for each individual from the multisource sex DataFrame based on specified criteria.
@@ -293,9 +319,8 @@ def sex_record_selection(
             If specified, only records from the specified data sources will be included in the selection process. 
             If None, records from all available data sources will be considered. 
             Defaults to None.
-        priority_index (Dict[str, int], optional): Priority index mapping data sources to priority levels.
-            Sources not specified in the mapping will have a default priority level of 0.
-            Defaults to {'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1}.
+        priority_index (Dict[str, int], optional): Priority mapping for data sources; lower indices are prioritised.
+            Defaults to {'gdppr': 1, 'hes_apc': 2, 'hes_op': 3, 'hes_ae': 3}.
 
     Returns:
         DataFrame: DataFrame containing the selected sex records for each individual.
@@ -312,10 +337,7 @@ def sex_record_selection(
     # Filter out anomalous records
     sex_multisource = (
         sex_multisource
-        .filter(
-            (f.expr('sex IS NOT NULL'))
-            & (f.expr('record_date IS NOT NULL'))
-        )
+        .filter('(person_id IS NOT NULL) AND (sex IS NOT NULL) AND (record_date IS NOT NULL)')
     )
 
     # Apply date restrictions
@@ -323,14 +345,14 @@ def sex_record_selection(
         sex_multisource = (
             sex_multisource
             .withColumn('min_record_date', f.expr(parse_date_instruction(min_record_date)))
-            .filter(f.expr('(record_date >= min_record_date)'))
+            .filter('(record_date >= min_record_date)')
         )
     
     if max_record_date is not None:
         sex_multisource = (
             sex_multisource
             .withColumn('max_record_date', f.expr(parse_date_instruction(max_record_date)))
-            .filter(f.expr('(record_date <= max_record_date)'))
+            .filter('(record_date <= max_record_date)')
         )
 
     # Apply data source restrictions
@@ -344,23 +366,66 @@ def sex_record_selection(
     sex_multisource = (
         sex_multisource
         .transform(map_column_values, map_dict = priority_index, column = 'data_source', new_column = 'source_priority')
-        .fillna({'source_priority': 0})
     )
 
-    # Select record for each individual based on source priority and recency rules
-    sex_individual = (
+    # Select rows of 1st dense rank for each individual based on source priority and recency rules
+    sex_ties = (
         sex_multisource
         .transform(
-            first_row,
+            first_dense_rank, n = 1,
             partition_by = ['person_id'],
-            order_by = [f.col('source_priority').desc(), f.col('record_date').desc(), 'data_source', 'sex', 'sex_code']
+            order_by = [f.col('source_priority').asc_nulls_last(), f.col('record_date').desc()]
+        )
+    )
+
+    # Specify window function to collect ties
+    _win_collect_ties = (
+        Window
+        .partitionBy('person_id')
+        .orderBy('data_source', 'sex_code', 'sex')
+    )
+
+    # Create tie flag and collect ties in arrays
+    sex_ties = (
+        sex_ties
+        .withColumn(
+            'sex_distinct_value',
+            f.collect_set(f.col('sex')).over(_win_collect_ties)
+        )
+        .withColumn(
+            'sex_tie_flag',
+            f.when(f.size(f.col('sex_distinct_value')) > f.lit(1), f.lit(1))
+        )
+        .withColumn(
+            'sex_code_tie_value',
+            f.when(f.col('sex_tie_flag') == f.lit(1), f.collect_list(f.col('sex_code')).over(_win_collect_ties))
+        )
+        .withColumn(
+            'sex_tie_value',
+            f.when(f.col('sex_tie_flag') == f.lit(1), f.collect_list(f.col('sex')).over(_win_collect_ties))
+        )
+        .withColumn(
+            'sex_tie_data_source',
+            f.when(f.col('sex_tie_flag') == f.lit(1), f.collect_list(f.col('data_source')).over(_win_collect_ties))
+        )
+    )
+
+    # Randomly select record to break tie
+    sex_individual = (
+        sex_ties
+        .transform(
+            first_row, n = 1,
+            partition_by = ['person_id'], order_by = [f.rand(seed = 124910)]
         )
     )
 
     # Select columns
     sex_individual = (
         sex_individual
-        .select('person_id', 'sex', 'sex_code', 'record_date', 'data_source')
+        .select(
+            'person_id', 'sex_code', 'sex', 'record_date', 'data_source',
+            'sex_tie_flag', 'sex_code_tie_value', 'sex_tie_value', 'sex_tie_data_source'
+        )
     )
 
     return sex_individual
