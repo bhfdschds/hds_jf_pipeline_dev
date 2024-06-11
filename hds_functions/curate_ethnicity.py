@@ -1,10 +1,9 @@
-from pyspark.sql import functions as f
-from pyspark.sql import DataFrame
+from pyspark.sql import functions as f, DataFrame, Window
 from functools import reduce
 from typing import List, Dict
 from .table_management import load_table, save_table
 from .date_functions import parse_date_instruction
-from .data_aggregation import first_row
+from .data_aggregation import first_row, first_dense_rank
 from .data_wrangling import map_column_values
 from .csv_utils import read_csv_file, create_dict_from_csv
 
@@ -54,8 +53,8 @@ def extract_ethnicity(extract_method: str) -> DataFrame:
         },
         'gdppr': {
             'extraction_function': gdppr_ethnicity,
-            'data_source': 'gdppr',
-            'load_method': 'gdppr'
+            'data_source': 'gdppr_demographics',
+            'load_method': None
         },
         'hes_apc': {
             'extraction_function': hes_apc_ethnicity,
@@ -97,16 +96,16 @@ def gdppr_snomed_ethnicity(gdppr: DataFrame) -> DataFrame:
     """
 
     codelist_ethnicity = (
-        read_csv_file(path='ethnicity_categories_snomed_mapping.csv', repo='hds_reference_data')
+        read_csv_file(path='ethnicity_mapping/ethnicity_categories_snomed_mapping.csv', repo='hds_reference_data')
         .select('code', 'description', 'ethnic_category')
     )
 
     dict_category_description = create_dict_from_csv(
-        path='ethnicity_categories.csv', key_column='code', value_columns='description', repo='hds_reference_data'
+        path='ethnicity_mapping/ethnicity_categories.csv', key_column='code', value_columns='description', repo='hds_reference_data'
     )
 
     dict_broad_group = create_dict_from_csv(
-        path='ethnicity_categories.csv', key_column='code', value_columns='ethnic_broad_group', repo='hds_reference_data'
+        path='ethnicity_mapping/ethnicity_categories.csv', key_column='code', value_columns='ethnic_broad_group', repo='hds_reference_data'
     )
 
     ethnicity_gdppr_snomed = (
@@ -122,12 +121,13 @@ def gdppr_snomed_ethnicity(gdppr: DataFrame) -> DataFrame:
         )
         .drop('date')
         .join(codelist_ethnicity, on = 'code', how = 'inner')
+        .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL)")
         .distinct()
         .withColumnRenamed('code', 'ethnicity_raw_code')
         .withColumnRenamed('description', 'ethnicity_raw_description')
-        .withColumnRenamed('ethnic_category', 'ethnicity_19_code')
-        .transform(map_column_values, dict_category_description, column='ethnicity_19_code', new_column='ethnicity_19_group')
-        .transform(map_column_values, dict_broad_group, column='ethnicity_19_code', new_column='ethnicity_5_group')
+        .withColumnRenamed('ethnic_category', 'ethnicity_18_code')
+        .transform(map_column_values, dict_category_description, column='ethnicity_18_code', new_column='ethnicity_18_group')
+        .transform(map_column_values, dict_broad_group, column='ethnicity_18_code', new_column='ethnicity_5_group')
         .withColumn('data_source', f.lit('gdppr_snomed'))
     )
 
@@ -146,11 +146,11 @@ def gdppr_ethnicity(gdppr: DataFrame) -> DataFrame:
     """
 
     dict_category_description = create_dict_from_csv(
-        path='ethnicity_categories.csv', key_column='code', value_columns='description', repo='hds_reference_data'
+        path='ethnicity_mapping/ethnicity_categories.csv', key_column='code', value_columns='description', repo='hds_reference_data'
     )
 
     dict_broad_group = create_dict_from_csv(
-        path='ethnicity_categories.csv', key_column='code', value_columns='ethnic_broad_group', repo='hds_reference_data'
+        path='ethnicity_mapping/ethnicity_categories.csv', key_column='code', value_columns='ethnic_broad_group', repo='hds_reference_data'
     )
 
     ethnicity_gdppr = (
@@ -160,11 +160,12 @@ def gdppr_ethnicity(gdppr: DataFrame) -> DataFrame:
             f.col('reporting_period_end_date').alias('record_date'),
             f.col('ethnic').alias('ethnicity_raw_code')
         )
+        .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL) AND (ethnicity_raw_code IS NOT NULL)")
         .distinct()
         .transform(map_column_values, dict_category_description, column='ethnicity_raw_code', new_column='ethnicity_raw_description')
-        .withColumn('ethnicity_19_code', f.col('ethnicity_raw_code'))
-        .withColumn('ethnicity_19_group', f.col('ethnicity_raw_description'))
-        .transform(map_column_values, dict_broad_group, column='ethnicity_19_code', new_column='ethnicity_5_group')
+        .withColumn('ethnicity_18_code', f.col('ethnicity_raw_code'))
+        .withColumn('ethnicity_18_group', f.col('ethnicity_raw_description'))
+        .transform(map_column_values, dict_broad_group, column='ethnicity_18_code', new_column='ethnicity_5_group')
         .withColumn('data_source', f.lit('gdppr'))
     )
 
@@ -184,21 +185,21 @@ def hes_apc_ethnicity(hes_apc: DataFrame) -> DataFrame:
     """
     
     dict_pre_2003_description = create_dict_from_csv(
-        path='ethnicity_categories_pre_2003.csv', key_column='code', value_columns='description', repo='hds_reference_data'
+        path='ethnicity_mapping/ethnicity_categories_pre_2003.csv', key_column='code', value_columns='description', repo='hds_reference_data'
     )
 
-    dict_ethnicity_19_description = create_dict_from_csv(
-        path='ethnicity_categories.csv', key_column='code', value_columns='description', repo='hds_reference_data'
+    dict_ethnicity_18_description = create_dict_from_csv(
+        path='ethnicity_mapping/ethnicity_categories.csv', key_column='code', value_columns='description', repo='hds_reference_data'
     )
 
-    dict_combined_description = {**dict_pre_2003_description, **dict_ethnicity_19_description}
+    dict_combined_description = {**dict_pre_2003_description, **dict_ethnicity_18_description}
 
-    dict_pre_2003_to_ethnicity_19_mapping = create_dict_from_csv(
-        path='ethnicity_categories_pre_2003.csv', key_column='code', value_columns='ethnic_category', repo='hds_reference_data'
+    dict_pre_2003_to_ethnicity_18_mapping = create_dict_from_csv(
+        path='ethnicity_mapping/ethnicity_categories_pre_2003.csv', key_column='code', value_columns='ethnic_category', repo='hds_reference_data'
     )
 
     dict_broad_group = create_dict_from_csv(
-        path='ethnicity_categories.csv', key_column='code', value_columns='ethnic_broad_group', repo='hds_reference_data'
+        path='ethnicity_mapping/ethnicity_categories.csv', key_column='code', value_columns='ethnic_broad_group', repo='hds_reference_data'
     )
 
     ethnicity_hes_apc = (
@@ -208,6 +209,7 @@ def hes_apc_ethnicity(hes_apc: DataFrame) -> DataFrame:
             f.col('epistart').alias('record_date'),
             f.col('ethnos').alias('ethnicity_raw_code')
         )
+        .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL) AND (ethnicity_raw_code IS NOT NULL)")
         .distinct()
         .transform(
             map_column_values,
@@ -215,21 +217,21 @@ def hes_apc_ethnicity(hes_apc: DataFrame) -> DataFrame:
             column='ethnicity_raw_code',
             new_column='ethnicity_raw_description'
         )
-        .withColumn('ethnicity_19_code', f.col('ethnicity_raw_code'))
+        .withColumn('ethnicity_18_code', f.col('ethnicity_raw_code'))
         .replace(
-            dict_pre_2003_to_ethnicity_19_mapping,
-            subset = ['ethnicity_19_code']
+            dict_pre_2003_to_ethnicity_18_mapping,
+            subset = ['ethnicity_18_code']
         )
         .transform(
             map_column_values,
-            dict_ethnicity_19_description,
-            column='ethnicity_19_code',
-            new_column='ethnicity_19_group'
+            dict_ethnicity_18_description,
+            column='ethnicity_18_code',
+            new_column='ethnicity_18_group'
         )
         .transform(
             map_column_values,
             dict_broad_group,
-            column='ethnicity_19_code',
+            column='ethnicity_18_code',
             new_column='ethnicity_5_group'
         )
         .withColumn('data_source', f.lit('hes_apc'))
@@ -250,12 +252,12 @@ def hes_op_ethnicity(hes_op: DataFrame) -> DataFrame:
         DataFrame: Processed DataFrame with metadata added.
     """
 
-    dict_ethnicity_19_description = create_dict_from_csv(
-        path='ethnicity_categories.csv', key_column='code', value_columns='description', repo='hds_reference_data'
+    dict_ethnicity_18_description = create_dict_from_csv(
+        path='ethnicity_mapping/ethnicity_categories.csv', key_column='code', value_columns='description', repo='hds_reference_data'
     )
 
     dict_broad_group = create_dict_from_csv(
-        path='ethnicity_categories.csv', key_column='code', value_columns='ethnic_broad_group', repo='hds_reference_data'
+        path='ethnicity_mapping/ethnicity_categories.csv', key_column='code', value_columns='ethnic_broad_group', repo='hds_reference_data'
     )
 
     ethnicity_hes_op = (
@@ -265,19 +267,20 @@ def hes_op_ethnicity(hes_op: DataFrame) -> DataFrame:
             f.col('apptdate').alias('record_date'),
             f.col('ethnos').alias('ethnicity_raw_code')
         )
+        .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL) AND (ethnicity_raw_code IS NOT NULL)")
         .distinct()
         .transform(
             map_column_values,
-            dict_ethnicity_19_description,
+            dict_ethnicity_18_description,
             column='ethnicity_raw_code',
             new_column='ethnicity_raw_description'
         )
-        .withColumn('ethnicity_19_code', f.col('ethnicity_raw_code'))
-        .withColumn('ethnicity_19_group', f.col('ethnicity_raw_description'))
+        .withColumn('ethnicity_18_code', f.col('ethnicity_raw_code'))
+        .withColumn('ethnicity_18_group', f.col('ethnicity_raw_description'))
         .transform(
             map_column_values,
             dict_broad_group,
-            column='ethnicity_19_code',
+            column='ethnicity_18_code',
             new_column='ethnicity_5_group'
         )
         .withColumn('data_source', f.lit('hes_op'))
@@ -298,12 +301,12 @@ def hes_ae_ethnicity(hes_ae: DataFrame) -> DataFrame:
         DataFrame: Processed DataFrame with metadata added.
     """
 
-    dict_ethnicity_19_description = create_dict_from_csv(
-        path='ethnicity_categories.csv', key_column='code', value_columns='description', repo='hds_reference_data'
+    dict_ethnicity_18_description = create_dict_from_csv(
+        path='ethnicity_mapping/ethnicity_categories.csv', key_column='code', value_columns='description', repo='hds_reference_data'
     )
 
     dict_broad_group = create_dict_from_csv(
-        path='ethnicity_categories.csv', key_column='code', value_columns='ethnic_broad_group', repo='hds_reference_data'
+        path='ethnicity_mapping/ethnicity_categories.csv', key_column='code', value_columns='ethnic_broad_group', repo='hds_reference_data'
     )
 
     ethnicity_hes_ae = (
@@ -313,19 +316,20 @@ def hes_ae_ethnicity(hes_ae: DataFrame) -> DataFrame:
             f.col('arrivaldate').alias('record_date'),
             f.col('ethnos').alias('ethnicity_raw_code')
         )
+        .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL) AND (ethnicity_raw_code IS NOT NULL)")
         .distinct()
         .transform(
             map_column_values,
-            dict_ethnicity_19_description,
+            dict_ethnicity_18_description,
             column='ethnicity_raw_code',
             new_column='ethnicity_raw_description'
         )
-        .withColumn('ethnicity_19_code', f.col('ethnicity_raw_code'))
-        .withColumn('ethnicity_19_group', f.col('ethnicity_raw_description'))
+        .withColumn('ethnicity_18_code', f.col('ethnicity_raw_code'))
+        .withColumn('ethnicity_18_group', f.col('ethnicity_raw_description'))
         .transform(
             map_column_values,
             dict_broad_group,
-            column='ethnicity_19_code',
+            column='ethnicity_18_code',
             new_column='ethnicity_5_group'
         )
         .withColumn('data_source', f.lit('hes_ae'))
@@ -340,8 +344,8 @@ def create_ethnicity_individual(
     min_record_date: str = '1900-01-01',
     max_record_date: str = 'current_date()', 
     data_source: List[str] = None,
-    ethnicity_19_null_codes: List[str] = ['', 'X', 'Z', '99'],
-    priority_index: Dict[str, int] = {'gdppr_snomed': 4, 'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1},
+    ethnicity_18_null_codes: List[str] = ['', 'X', 'Z', '99'],
+    priority_index: Dict[str, int] = {'gdppr_snomed': 1, 'gdppr': 2, 'hes_apc': 3, 'hes_op': 4, 'hes_ae': 4},
 ):
     """
     Wrapper function to create and save a table containing selected ethnicity records for each individual.
@@ -355,10 +359,9 @@ def create_ethnicity_individual(
             If specified, only records from the specified data sources will be included in the selection process. 
             If None, records from all available data sources will be considered. 
             Defaults to None.
-        ethnicity_19_null_codes (List[str], optional): List of indeterminate ethnicity_19 codes that will be removed from selection.  
-        priority_index (Dict[str, int], optional): Priority index mapping data sources to priority levels.
-            Sources not specified in the mapping will have a default priority level of 0.
-            Defaults to {'gdppr_snomed': 4, 'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1}.
+        ethnicity_18_null_codes (List[str], optional): List of indeterminate ethnicity_18 codes that will be removed from selection.  
+        priority_index (Dict[str, int], optional): Priority mapping for data sources; lower indices are prioritised.
+            Defaults to {'gdppr_snomed': 1, 'gdppr': 2, 'hes_apc': 3, 'hes_op': 4, 'hes_ae': 4}.
     """
 
     # Load multisource ethnicity table
@@ -370,7 +373,7 @@ def create_ethnicity_individual(
         min_record_date=min_record_date,
         max_record_date=max_record_date,
         data_source=data_source,
-        ethnicity_19_null_codes=ethnicity_19_null_codes,
+        ethnicity_18_null_codes=ethnicity_18_null_codes,
         priority_index=priority_index
     )
 
@@ -383,8 +386,8 @@ def ethnicity_record_selection(
     min_record_date: str = '1900-01-01',
     max_record_date: str = 'current_date()', 
     data_source: List[str] = None,
-    ethnicity_19_null_codes: List[str] = ['', 'X', 'Z', '99'],
-    priority_index: Dict[str, int] = {'gdppr_snomed': 4, 'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1},
+    ethnicity_18_null_codes: List[str] = ['', 'X', 'Z', '99'],
+    priority_index: Dict[str, int] = {'gdppr_snomed': 1, 'gdppr': 2, 'hes_apc': 3, 'hes_op': 4, 'hes_ae': 4},
 ) -> DataFrame:
     """
     Selects a single record for each individual from the multisource ethnicity DataFrame based on specified criteria.
@@ -397,10 +400,9 @@ def ethnicity_record_selection(
             If specified, only records from the specified data sources will be included in the selection process. 
             If None, records from all available data sources will be considered. 
             Defaults to None.
-        ethnicity_19_null_codes (List[str], optional): List of indeterminate ethnicity_19 codes that will be removed from selection.     
-        priority_index (Dict[str, int], optional): Priority index mapping data sources to priority levels.
-            Sources not specified in the mapping will have a default priority level of 0.
-            Defaults to {'gdppr_snomed': 4, 'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1}.
+        ethnicity_18_null_codes (List[str], optional): List of indeterminate ethnicity_18 codes that will be removed from selection.     
+        priority_index (Dict[str, int], optional): Priority mapping for data sources; lower indices are prioritised.
+            Defaults to {'gdppr_snomed': 1, 'gdppr': 2, 'hes_apc': 3, 'hes_op': 4, 'hes_ae': 4}.
 
     Returns:
         DataFrame: DataFrame containing the selected ethnicity records for each individual.
@@ -418,10 +420,11 @@ def ethnicity_record_selection(
     ethnicity_multisource = (
         ethnicity_multisource
         .filter(
-            (f.expr('ethnicity_raw_code IS NOT NULL'))
-            & (f.expr('record_date IS NOT NULL'))
-            & (f.col('ethnicity_19_code').isNotNull())
-            & (~f.col('ethnicity_19_code').isin(ethnicity_19_null_codes))
+            (f.col('person_id')isNotNull())
+            & (f.col('record_date').isNotNull())
+            & (f.col('ethnicity_raw_code').isNotNull())
+            & (f.col('ethnicity_18_code').isNotNull())
+            & (~f.col('ethnicity_18_code').isin(ethnicity_18_null_codes))
         )
     )
 
@@ -430,14 +433,14 @@ def ethnicity_record_selection(
         ethnicity_multisource = (
             ethnicity_multisource
             .withColumn('min_record_date', f.expr(parse_date_instruction(min_record_date)))
-            .filter(f.expr('(record_date >= min_record_date)'))
+            .filter('(record_date >= min_record_date)')
         )
     
     if max_record_date is not None:
         ethnicity_multisource = (
             ethnicity_multisource
             .withColumn('max_record_date', f.expr(parse_date_instruction(max_record_date)))
-            .filter(f.expr('(record_date <= max_record_date)'))
+            .filter('(record_date <= max_record_date)')
         )
 
     # Apply data source restrictions
@@ -451,16 +454,80 @@ def ethnicity_record_selection(
     ethnicity_multisource = (
         ethnicity_multisource
         .transform(map_column_values, map_dict = priority_index, column = 'data_source', new_column = 'source_priority')
-        .fillna({'source_priority': 0})
     )
 
-    # Select record for each individual based on source priority and recency rules
-    ethnicity_individual = (
+    # Select rows of 1st dense rank for each individual based on source priority and recency rules
+    ethnicity_ties = (
         ethnicity_multisource
         .transform(
-            first_row,
+            first_dense_rank, n = 1,
             partition_by = ['person_id'],
-            order_by = [f.col('source_priority').desc(), f.col('record_date').desc(), 'data_source', 'ethnicity_19_code']
+            order_by = [f.col('source_priority').asc_nulls_last(), f.col('record_date').desc()]
+        )
+    )
+
+    # Specify window function to collect ties 
+    _win_collect_ties_5 = (
+        Window
+        .partitionBy('person_id')
+        .orderBy('data_source', 'ethnicity_5_group')
+    )
+
+    # Create tie flag and collect ties in arrays
+    ethnicity_ties = (
+        ethnicity_ties
+        .withColumn(
+            'ethnicity_5_distinct_group',
+            f.collect_set(f.col('ethnicity_5_group')).over(_win_collect_ties_5)
+        )
+        .withColumn(
+            'ethnicity_5_tie_flag',
+            f.when(f.size(f.col('ethnicity_5_distinct_group')) > f.lit(1), f.lit(1))
+        )
+        .withColumn(
+            'ethnicity_5_tie_group',
+            f.when(f.col('ethnicity_5_tie_flag') == f.lit(1), f.collect_list(f.col('ethnicity_5_group')).over(_win_collect_ties_5))
+        )
+        .withColumn(
+            'ethnicity_5_tie_data_source',
+            f.when(f.col('ethnicity_5_tie_flag') == f.lit(1), f.collect_list(f.col('data_source')).over(_win_collect_ties_5))
+        )
+    )
+
+    # Specify window function to collect ties
+    _win_collect_ties_18 = (
+        Window
+        .partitionBy('person_id')
+        .orderBy('data_source', 'ethnicity_18_code', 'ethnicity_18_group')
+    )
+
+    # Create tie flag and collect ties in arrays
+    ethnicity_ties = (
+        ethnicity_ties
+        .withColumn(
+            'ethnicity_18_distinct_group',
+            f.collect_set(f.col('ethnicity_18_group')).over(_win_collect_ties_18)
+        )
+        .withColumn(
+            'ethnicity_18_tie_flag',
+            f.when(f.size(f.col('ethnicity_18_distinct_group')) > f.lit(1), f.lit(1))
+        )
+        .withColumn(
+            'ethnicity_18_tie_group',
+            f.when(f.col('ethnicity_18_tie_flag') == f.lit(1), f.collect_list(f.col('ethnicity_18_group')).over(_win_collect_ties_18))
+        )
+        .withColumn(
+            'ethnicity_18_tie_data_source',
+            f.when(f.col('ethnicity_18_tie_flag') == f.lit(1), f.collect_list(f.col('data_source')).over(_win_collect_ties_18))
+        )
+    )
+
+    # Randomly select record to break tie
+    ethnicity_individual = (
+        ethnicity_ties
+        .transform(
+            first_row, n = 1,
+            partition_by = ['person_id'], order_by = [f.rand(seed = 124910)]
         )
     )
 
@@ -468,8 +535,10 @@ def ethnicity_record_selection(
     ethnicity_individual = (
         ethnicity_individual
         .select(
-            'person_id', 'ethnicity_raw_code', 'ethnicity_raw_description', 'ethnicity_19_code', 'ethnicity_19_group',
-            'ethnicity_5_group', 'record_date', 'data_source'
+            'person_id', 'ethnicity_raw_code', 'ethnicity_raw_description', 'ethnicity_18_code', 'ethnicity_18_group',
+            'ethnicity_5_group', 'record_date', 'data_source',
+            'ethnicity_5_tie_flag', 'ethnicity_5_tie_group', 'ethnicity_5_tie_data_source',
+            'ethnicity_18_tie_flag', 'ethnicity_18_tie_group', 'ethnicity_18_tie_data_source'
         )
     )
 
