@@ -420,7 +420,7 @@ def ethnicity_record_selection(
     ethnicity_multisource = (
         ethnicity_multisource
         .filter(
-            (f.col('person_id')isNotNull())
+            (f.col('person_id').isNotNull())
             & (f.col('record_date').isNotNull())
             & (f.col('ethnicity_raw_code').isNotNull())
             & (f.col('ethnicity_18_code').isNotNull())
