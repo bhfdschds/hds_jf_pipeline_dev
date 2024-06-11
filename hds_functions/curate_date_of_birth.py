@@ -92,7 +92,7 @@ def gdppr_date_of_birth(gdppr_demographics: DataFrame) -> DataFrame:
     Process the date of birth data from the GDPPR demographics table, ensuring distinct records.
 
     Args:
-        gdppr (DataFrame): DataFrame containing the GDPPR table data.
+        gdppr_demographics (DataFrame): DataFrame containing GDPPR demographics data.
 
     Returns:
         DataFrame: Processed DataFrame with metadata added.
@@ -299,8 +299,8 @@ def create_date_of_birth_individual(
     min_date_of_birth: str = '1880-01-01', 
     max_date_of_birth: str = 'current_date()',
     data_source: List[str] = None,
-    priority_index: Dict[str, int] = {'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1},
-):
+    priority_index: Dict[str, int] = {'gdppr': 1, 'hes_apc': 2, 'hes_op': 3, 'hes_ae': 3},
+) -> None:
     """
     Wrapper function to create and save a table containing selected date of birth records for each individual.
 
@@ -317,7 +317,7 @@ def create_date_of_birth_individual(
             Defaults to None.
         priority_index (Dict[str, int], optional): Priority index mapping data sources to priority levels.
             Sources not specified in the mapping will have a default priority level of 0.
-            Defaults to {'gdppr': 3, 'hes_apc': 2, 'hes_op': 1, 'hes_ae': 1}.
+            Defaults to {'gdppr': 1, 'hes_apc': 2, 'hes_op': 3, 'hes_ae': 3}.
     """
 
     # Load multisource date of birth table
@@ -368,6 +368,14 @@ def date_of_birth_record_selection(
     Returns:
         DataFrame: DataFrame containing the selected date of birth records for each individual.
     """
+
+    # Validate data_source argument
+    if data_source is not None:
+        assert isinstance(data_source, list), "data_source must be a list."
+        assert data_source is None or data_source, "data_source cannot be an empty list."
+        allowed_sources = {'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap', 'vaccine_status'}
+        invalid_sources = [str(source) for source in data_source if source not in allowed_sources or not isinstance(source, str)]
+        assert not invalid_sources, f"Invalid data sources: {invalid_sources}. Allowed sources are: {allowed_sources}."
 
     # Filter out anomalous records
     date_of_birth_multisource = (
