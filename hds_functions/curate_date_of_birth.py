@@ -101,10 +101,11 @@ def gdppr_date_of_birth(gdppr_demographics: DataFrame) -> DataFrame:
     date_of_birth_gdppr = (
         gdppr_demographics
         .select(
-            'archived_on', 'person_id',
+            'person_id',
             f.col('reporting_period_end_date').alias('record_date'),
             f.to_date('year_month_of_birth', 'yyyy-MM').alias('date_of_birth')
         )
+        .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL) AND (date_of_birth IS NOT NULL)")
         .distinct()
         .withColumn('data_source', f.lit('gdppr'))
     )
@@ -125,10 +126,11 @@ def hes_apc_date_of_birth(hes_apc: DataFrame) -> DataFrame:
     date_of_birth_hes_apc = (
         hes_apc
         .select(
-            'archived_on', 'person_id',
+            'person_id',
             f.col('epistart').alias('record_date'),
             f.to_date('mydob', 'MMyyyy').alias('date_of_birth')
         )
+        .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL) AND (date_of_birth IS NOT NULL)")
         .distinct()
         .withColumn('data_source', f.lit('hes_apc'))
     )
@@ -154,10 +156,11 @@ def hes_op_date_of_birth(hes_op: DataFrame) -> DataFrame:
     date_of_birth_hes_op = (
         hes_op
         .select(
-            'archived_on', 'person_id',
+            'person_id',
             f.col('apptdate').alias('record_date'),
             f.col('apptage_calc').alias('age_at_appointment')
         )
+        .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL) AND (age_at_appointment IS NOT NULL)")
         .distinct()
         .withColumn(
             'date_of_birth',
@@ -198,10 +201,11 @@ def hes_ae_date_of_birth(hes_ae: DataFrame) -> DataFrame:
     date_of_birth_hes_ae = (
         hes_ae
         .select(
-            'archived_on', 'person_id',
+            'person_id',
             f.col('arrivaldate').alias('record_date'),
             f.col('arrivalage_calc').alias('age_at_arrival')
         )
+        .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL) AND (age_at_arrival IS NOT NULL)")
         .distinct()
         .withColumn(
             'date_of_birth',
@@ -243,10 +247,11 @@ def ssnap_date_of_birth(ssnap: DataFrame) -> DataFrame:
     date_of_birth_ssnap = (
         ssnap
         .select(
-            'archived_on', 'person_id',
+            'person_id',
             f.to_date('s1firstarrivaldatetime').alias('record_date'),
             f.col('s1ageonarrival').alias('age_on_arrival')
         )
+        .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL) AND (age_on_arrival IS NOT NULL)")
         .distinct()
         .withColumn(
             'date_of_birth',
@@ -274,10 +279,11 @@ def vaccine_status_date_of_birth(vaccine_status: DataFrame) -> DataFrame:
     date_of_birth_vaccine_status = (
         vaccine_status
         .select(
-            'archived_on', 'person_id',
+            'person_id',
             f.col('recorded_date').alias('record_date'),
             f.to_date('mydob', 'MMyyyy').alias('date_of_birth')
         )
+        .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL) AND (date_of_birth IS NOT NULL)")
         .distinct()
         .withColumn('data_source', f.lit('vaccine_status'))
     )
@@ -367,9 +373,10 @@ def date_of_birth_record_selection(
     date_of_birth_multisource = (
         date_of_birth_multisource
         .filter(
-            (f.expr('date_of_birth IS NOT NULL'))
-            & (f.expr('record_date IS NOT NULL'))
-            & (f.expr('record_date >= date_of_birth'))
+            """
+            (person_id IS NOT NULL) AND (date_of_birth IS NOT NULL)
+            AND (record_date IS NOT NULL) AND (record_date >= date_of_birth)
+            """
         )
     )
 
@@ -378,28 +385,28 @@ def date_of_birth_record_selection(
         date_of_birth_multisource = (
             date_of_birth_multisource
             .withColumn('min_record_date', f.expr(parse_date_instruction(min_record_date)))
-            .filter(f.expr('(record_date >= min_record_date)'))
+            .filter('(record_date >= min_record_date)')
         )
     
     if max_record_date is not None:
         date_of_birth_multisource = (
             date_of_birth_multisource
             .withColumn('max_record_date', f.expr(parse_date_instruction(max_record_date)))
-            .filter(f.expr('(record_date <= max_record_date)'))
+            .filter('(record_date <= max_record_date)')
         )
 
     if min_date_of_birth is not None:
         date_of_birth_multisource = (
             date_of_birth_multisource
             .withColumn('min_date_of_birth', f.expr(parse_date_instruction(min_date_of_birth)))
-            .filter(f.expr('(date_of_birth >= min_date_of_birth)'))
+            .filter('(date_of_birth >= min_date_of_birth)')
         )
 
     if max_date_of_birth is not None:
         date_of_birth_multisource = (
             date_of_birth_multisource
             .withColumn('max_date_of_birth', f.expr(parse_date_instruction(max_date_of_birth)))
-            .filter(f.expr('(date_of_birth <= max_date_of_birth)'))
+            .filter('(date_of_birth <= max_date_of_birth)')
         )
 
     # Apply data source restrictions
@@ -432,33 +439,24 @@ def date_of_birth_record_selection(
         .orderBy('data_source', 'date_of_birth')
     )
 
-    # Collect tie date of birth and data source into arrays
+    # Create tie flag and collect ties in arrays
     date_of_birth_ties = (
         date_of_birth_ties
         .withColumn(
-            'date_of_birth_tie_value',
-            f.collect_list(f.col('date_of_birth')).over(_win_collect_ties)
+            'date_of_birth_distinct_value',
+            f.collect_set(f.col('date_of_birth')).over(_win_collect_ties)
         )
-        .withColumn(
-            'date_of_birth_tie_data_source',
-            f.collect_list(f.col('data_source')).over(_win_collect_ties)
-        )
-    )
-
-    # Create tie flag and null tie values if only one record
-    date_of_birth_ties = (
-        date_of_birth_ties
         .withColumn(
             'date_of_birth_tie_flag',
-            f.when(f.size(f.col('date_of_birth_tie_value')) > f.lit(1), f.lit(1))
+            f.when(f.size(f.col('date_of_birth_distinct_value')) > f.lit(1), f.lit(1))
         )
         .withColumn(
-            'date_of_birth_tie_values',
-            f.when(f.col('date_of_birth_tie_flag') == f.lit(1), f.col('date_of_birth_tie_value'))
+            'date_of_birth_tie_value',
+            f.when(f.col('date_of_birth_tie_flag') == f.lit(1), f.collect_list(f.col('date_of_birth')).over(_win_collect_ties))
         )
         .withColumn(
             'date_of_birth_tie_data_source',
-            f.when(f.col('date_of_birth_tie_flag') == f.lit(1), f.col('date_of_birth_tie_data_source'))
+            f.when(f.col('date_of_birth_tie_flag') == f.lit(1), f.collect_list(f.col('data_source')).over(_win_collect_ties))
         )
     )
 
@@ -467,7 +465,7 @@ def date_of_birth_record_selection(
         date_of_birth_ties
         .transform(
             first_row, n = 1,
-            partition_by = ['person_id'], order_by = f.rand(seed = 124910)
+            partition_by = ['person_id'], order_by = [f.rand(seed = 124910)]
         )
     )
 
