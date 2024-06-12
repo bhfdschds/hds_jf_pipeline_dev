@@ -383,6 +383,7 @@ def sex_record_selection(
         Window
         .partitionBy('person_id')
         .orderBy('data_source', 'sex_code', 'sex')
+        .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
     )
 
     # Create tie flag and collect ties in arrays
