@@ -466,11 +466,12 @@ def ethnicity_record_selection(
         )
     )
 
-    # Specify window function to collect ties 
-    _win_collect_ties_5 = (
+    # Specify window function to collect ties
+    _win_collect_ties = (
         Window
         .partitionBy('person_id')
-        .orderBy('data_source', 'ethnicity_5_group')
+        .orderBy('data_source', 'ethnicity_18_code', 'ethnicity_18_group', 'ethnicity_5_group')
+        .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
     )
 
     # Create tie flag and collect ties in arrays
@@ -478,7 +479,7 @@ def ethnicity_record_selection(
         ethnicity_ties
         .withColumn(
             'ethnicity_5_distinct_group',
-            f.collect_set(f.col('ethnicity_5_group')).over(_win_collect_ties_5)
+            f.collect_set(f.col('ethnicity_5_group')).over(_win_collect_ties)
         )
         .withColumn(
             'ethnicity_5_tie_flag',
@@ -486,19 +487,12 @@ def ethnicity_record_selection(
         )
         .withColumn(
             'ethnicity_5_tie_group',
-            f.when(f.col('ethnicity_5_tie_flag') == f.lit(1), f.collect_list(f.col('ethnicity_5_group')).over(_win_collect_ties_5))
+            f.when(f.col('ethnicity_5_tie_flag') == f.lit(1), f.collect_list(f.col('ethnicity_5_group')).over(_win_collect_ties))
         )
         .withColumn(
             'ethnicity_5_tie_data_source',
-            f.when(f.col('ethnicity_5_tie_flag') == f.lit(1), f.collect_list(f.col('data_source')).over(_win_collect_ties_5))
+            f.when(f.col('ethnicity_5_tie_flag') == f.lit(1), f.collect_list(f.col('data_source')).over(_win_collect_ties))
         )
-    )
-
-    # Specify window function to collect ties
-    _win_collect_ties_18 = (
-        Window
-        .partitionBy('person_id')
-        .orderBy('data_source', 'ethnicity_18_code', 'ethnicity_18_group')
     )
 
     # Create tie flag and collect ties in arrays
@@ -506,7 +500,7 @@ def ethnicity_record_selection(
         ethnicity_ties
         .withColumn(
             'ethnicity_18_distinct_group',
-            f.collect_set(f.col('ethnicity_18_group')).over(_win_collect_ties_18)
+            f.collect_set(f.col('ethnicity_18_group')).over(_win_collect_ties)
         )
         .withColumn(
             'ethnicity_18_tie_flag',
@@ -514,11 +508,11 @@ def ethnicity_record_selection(
         )
         .withColumn(
             'ethnicity_18_tie_group',
-            f.when(f.col('ethnicity_18_tie_flag') == f.lit(1), f.collect_list(f.col('ethnicity_18_group')).over(_win_collect_ties_18))
+            f.when(f.col('ethnicity_18_tie_flag') == f.lit(1), f.collect_list(f.col('ethnicity_18_group')).over(_win_collect_ties))
         )
         .withColumn(
             'ethnicity_18_tie_data_source',
-            f.when(f.col('ethnicity_18_tie_flag') == f.lit(1), f.collect_list(f.col('data_source')).over(_win_collect_ties_18))
+            f.when(f.col('ethnicity_18_tie_flag') == f.lit(1), f.collect_list(f.col('data_source')).over(_win_collect_ties))
         )
     )
 
