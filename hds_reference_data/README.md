@@ -19,3 +19,10 @@ A best fit lookup file between Lower layer Super Output Areas (LSOA) as at Decem
 The lookup contains all the 2011 LSOAs (34,753) and these are point-in-polygon to the 2021 LSOA full extent boundaries (which contains 34,628 records, so 1,044 LSOAs are missing from the 2021 LSOAs)
 
 source: https://geoportal.statistics.gov.uk/datasets/ons::lsoa-2011-to-lsoa-2021-to-local-authority-district-2022-best-fit-lookup-for-ew-v2/about
+
+
+### oa11_lsoa11_msoa11_lad11_exact_lookup
+
+An exact fit lookup between Output Areas (OA), Lower layer Super Output Areas (LSOA), Middle layer Super Output Areas (MSOA) and local authority districts (LAD) as at 31 December 2011 in England and Wales.
+
+source: https://geoportal.statistics.gov.uk/datasets/ons::output-area-2011-to-lsoa-to-msoa-to-lad-december-2011-exact-fit-lookup-in-ew/about
