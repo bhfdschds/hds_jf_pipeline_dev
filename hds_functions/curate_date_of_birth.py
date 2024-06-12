@@ -445,6 +445,7 @@ def date_of_birth_record_selection(
         Window
         .partitionBy('person_id')
         .orderBy('data_source', 'date_of_birth')
+        .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
     )
 
     # Create tie flag and collect ties in arrays
