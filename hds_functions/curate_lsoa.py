@@ -1,4 +1,4 @@
-from pyspark.sql import functions as f, DataFrame
+from pyspark.sql import functions as f, DataFrame, Window
 from functools import reduce
 from typing import List, Dict
 from .table_management import load_table, save_table
@@ -10,8 +10,6 @@ def create_lsoa_multisource(table_multisource: str = 'lsoa_multisource', extract
     """
     Create a consolidated DataFrame containing LSOA data from multiple sources and save it to a table.
 
-    LSOA sourced from gdppr_all_versions uses all archived versions.
-
     Args:
         table_multisource (str, optional): The name of the table to save the consolidated data. Defaults to 'lsoa_multisource'.
         extraction_methods (List[str], optional): List of methods for extracting LSOA data. Defaults to None.
@@ -20,7 +18,7 @@ def create_lsoa_multisource(table_multisource: str = 'lsoa_multisource', extract
         None
     """
     if extraction_methods is None:
-        extraction_methods = ['gdppr_all_versions', 'hes_apc', 'hes_op', 'hes_ae', 'vaccine_status']
+        extraction_methods = ['gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'vaccine_status']
 
     # Extract LSOA data from multiple sources
     lsoa_from_sources = [extract_lsoa(method) for method in extraction_methods]
@@ -30,13 +28,13 @@ def create_lsoa_multisource(table_multisource: str = 'lsoa_multisource', extract
     save_table(lsoa_multisource, table_multisource)
 
 
-def extract_lsoa(data_source: str) -> DataFrame:
+def extract_lsoa(extract_method: str) -> DataFrame:
     """
     Extract LSOA data based on the specified data source.
 
     Args:
-        data_source (str): The data source to extract LSOA data from.
-            Allowed values are: 'gdppr_all_versions', 'hes_apc', 'hes_op', 'hes_ae', 'vaccine_status'.
+        extract_method (str): The method to extract LSOA data from.
+            Allowed values are: 'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'vaccine_status'.
 
     Returns:
         DataFrame: DataFrame containing the extracted LSOA data from the selected source.
@@ -78,10 +76,10 @@ def extract_lsoa(data_source: str) -> DataFrame:
     }
 
     if extract_method not in extraction_methods:
-    raise ValueError(
-        f"Invalid extract_method: {extract_method}. Allowed values are: "
-        "'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap', 'vaccine_status'."
-    )
+        raise ValueError(
+            f"Invalid extract_method: {extract_method}. Allowed values are: "
+            "'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap', 'vaccine_status'."
+        )
 
     return extraction_methods[extract_method]['extraction_function'](
         load_table(
@@ -244,3 +242,180 @@ def vaccine_status_lsoa(vaccine_status: DataFrame) -> DataFrame:
 
     return lsoa_vaccine_status
 
+
+def create_lsoa_individual(
+    table_multisource: str = 'lsoa_multisource',
+    table_individual: str = 'lsoa_individual',
+    min_record_date: str = '1900-01-01',
+    max_record_date: str = 'current_date()', 
+    data_source: List[str] = None,
+    priority_index: Dict[str, int] = None,
+) -> None:
+    """
+    Wrapper function to create and save a table containing selected LSOA records for each individual.
+
+    Args:
+        table_multisource (str): Name of the multisource LSOA table.
+        table_individual (str): Name of the individual LSOA table to be created.
+        min_record_date (str, optional): Minimum record date to consider. Defaults to '1900-01-01'.
+        max_record_date (str, optional): Maximum record date to consider. Defaults to 'current_date()'.
+        data_source (List[str], optional): List of allowed data sources to consider when selecting LSOA records. 
+            If specified, only records from the specified data sources will be included in the selection process. 
+            If None, records from all available data sources will be considered. 
+            Defaults to None.
+        priority_index (Dict[str, int], optional): Priority mapping for data sources; lower indices are prioritised.
+            Defaults to None.
+    """
+
+    # Load multisource LSOA table
+    lsoa_multisource = load_table(table_multisource)
+
+    # Select individual LSOA records
+    lsoa_individual = lsoa_record_selection(
+        lsoa_multisource,
+        min_record_date=min_record_date,
+        max_record_date=max_record_date,
+        data_source=data_source,
+        priority_index=priority_index
+    )
+
+    # Save individual LSOA table
+    save_table(lsoa_individual, table_individual)
+
+
+def lsoa_record_selection(
+    lsoa_multisource: DataFrame,
+    min_record_date: str = '1900-01-01',
+    max_record_date: str = 'current_date()', 
+    data_source: List[str] = None,
+    priority_index: Dict[str, int] = None,
+) -> DataFrame:
+    """
+    Selects a single record for each individual from the multisource LSOA DataFrame based on specified criteria.
+
+    Args:
+        lsoa_multisource (DataFrame): DataFrame containing LSOA data from multiple sources.
+        min_record_date (str, optional): Minimum record date to consider. Defaults to '1900-01-01'.
+        max_record_date (str, optional): Maximum record date to consider. Defaults to 'current_date()'.
+        data_source (List[str], optional): List of allowed data sources to consider when selecting LSOA records. 
+            If specified, only records from the specified data sources will be included in the selection process. 
+            If None, records from all available data sources will be considered. 
+            Defaults to None.
+        priority_index (Dict[str, int], optional): Priority mapping for data sources; lower indices are prioritised.
+            Defaults to None.
+
+    Returns:
+        DataFrame: DataFrame containing the selected LSOA records for each individual.
+    """
+
+    # Allowed data sources
+    allowed_sources = {'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap', 'vaccine_status'}
+
+    # Validate data_source argument
+    if data_source is not None:
+        assert isinstance(data_source, list), "data_source must be a list."
+        assert data_source is None or data_source, "data_source cannot be an empty list."
+        invalid_sources = [str(source) for source in data_source if source not in allowed_sources or not isinstance(source, str)]
+        assert not invalid_sources, f"Invalid data sources: {invalid_sources}. Allowed sources are: {allowed_sources}."
+
+    # Filter out anomalous records
+    lsoa_multisource = (
+        lsoa_multisource
+        .filter('(person_id IS NOT NULL) AND (lsoa IS NOT NULL) AND (record_date IS NOT NULL)')
+    )
+
+    # Apply date restrictions
+    if min_record_date is not None:
+        lsoa_multisource = (
+            lsoa_multisource
+            .withColumn('min_record_date', f.expr(parse_date_instruction(min_record_date)))
+            .filter('(record_date >= min_record_date)')
+        )
+    
+    if max_record_date is not None:
+        lsoa_multisource = (
+            lsoa_multisource
+            .withColumn('max_record_date', f.expr(parse_date_instruction(max_record_date)))
+            .filter('(record_date <= max_record_date)')
+        )
+
+    # Apply data source restrictions
+    if data_source is not None:
+        lsoa_multisource = (
+            lsoa_multisource
+            .filter(f.col('data_source').isin(data_source))
+        )
+
+    # Map source priority
+    if priority_index is None:
+        lsoa_multisource = (
+            lsoa_multisource
+            .withColumn('source_priority', f.lit(None))
+        )
+    else:
+        # Check valid keys and values in priority_index
+        assert all(isinstance(value, int) for value in priority_index.values()), "Not all values in priority_index are integers"
+        invalid_keys = [key for key in priority_index.keys() if key not in allowed_sources]
+        assert not invalid_keys, f"Invalid keys: {invalid_keys}. Allowed keys are: {allowed_sources}."
+
+        lsoa_multisource = (
+            lsoa_multisource
+            .transform(map_column_values, map_dict = priority_index, column = 'data_source', new_column = 'source_priority')
+        )
+
+    # Select rows of 1st dense rank for each individual based on source priority and recency rules
+    lsoa_ties = (
+        lsoa_multisource
+        .transform(
+            first_dense_rank, n = 1,
+            partition_by = ['person_id'],
+            order_by = [f.col('record_date').desc(), f.col('source_priority').asc_nulls_last(), ]
+        )
+    )
+
+    # Specify window function to collect ties
+    _win_collect_ties = (
+        Window
+        .partitionBy('person_id')
+        .orderBy('data_source', 'lsoa')
+    )
+
+    # Create tie flag and collect ties in arrays
+    lsoa_ties = (
+        lsoa_ties
+        .withColumn(
+            'lsoa_distinct_value',
+            f.collect_set(f.col('lsoa')).over(_win_collect_ties)
+        )
+        .withColumn(
+            'lsoa_tie_flag',
+            f.when(f.size(f.col('lsoa_distinct_value')) > f.lit(1), f.lit(1))
+        )
+        .withColumn(
+            'lsoa_tie_value',
+            f.when(f.col('lsoa_tie_flag') == f.lit(1), f.collect_list(f.col('lsoa')).over(_win_collect_ties))
+        )
+        .withColumn(
+            'lsoa_tie_data_source',
+            f.when(f.col('lsoa_tie_flag') == f.lit(1), f.collect_list(f.col('data_source')).over(_win_collect_ties))
+        )
+    )
+
+    # Randomly select record to break tie
+    lsoa_individual = (
+        lsoa_ties
+        .transform(
+            first_row, n = 1,
+            partition_by = ['person_id'], order_by = [f.rand(seed = 124910)]
+        )
+    )
+
+    # Select columns
+    lsoa_individual = (
+        lsoa_individual
+        .select(
+            'person_id', 'lsoa', 'data_source', 'lsoa_tie_flag', 'lsoa_tie_value', 'lsoa_tie_data_source'
+        )
+    )
+
+    return lsoa_individual
