@@ -414,7 +414,7 @@ def lsoa_record_selection(
     lsoa_individual = (
         lsoa_individual
         .select(
-            'person_id', 'lsoa', 'data_source', 'lsoa_tie_flag', 'lsoa_tie_value', 'lsoa_tie_data_source'
+            'person_id', 'lsoa', 'record_date', 'data_source', 'lsoa_tie_flag', 'lsoa_tie_value', 'lsoa_tie_data_source'
         )
     )
 
