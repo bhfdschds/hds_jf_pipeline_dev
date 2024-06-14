@@ -18,7 +18,7 @@ def create_lsoa_multisource(table_multisource: str = 'lsoa_multisource', extract
         None
     """
     if extraction_methods is None:
-        extraction_methods = ['gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'vaccine_status']
+        extraction_methods = ['gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap', 'vaccine_status']
 
     # Extract LSOA data from multiple sources
     lsoa_from_sources = [extract_lsoa(method) for method in extraction_methods]
@@ -34,7 +34,7 @@ def extract_lsoa(extract_method: str) -> DataFrame:
 
     Args:
         extract_method (str): The method to extract LSOA data from.
-            Allowed values are: 'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'vaccine_status'.
+            Allowed values are: 'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap', 'vaccine_status'.
 
     Returns:
         DataFrame: DataFrame containing the extracted LSOA data from the selected source.
@@ -414,7 +414,7 @@ def lsoa_record_selection(
     lsoa_individual = (
         lsoa_individual
         .select(
-            'person_id', 'lsoa', 'data_source', 'lsoa_tie_flag', 'lsoa_tie_value', 'lsoa_tie_data_source'
+            'person_id', 'lsoa', 'record_date', 'data_source', 'lsoa_tie_flag', 'lsoa_tie_value', 'lsoa_tie_data_source'
         )
     )
 
