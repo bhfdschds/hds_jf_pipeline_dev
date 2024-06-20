@@ -248,7 +248,7 @@ def first_dense_rank(
     """
 
     df = select_top_rows(
-        df, method = 'rank', n = n, partition_by = partition_by, order_by = order_by,
+        df, method = 'dense_rank', n = n, partition_by = partition_by, order_by = order_by,
         return_index_column = return_index_column, index_column_name = index_column_name
     )
 
