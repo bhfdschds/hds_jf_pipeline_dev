@@ -168,8 +168,8 @@ def standardise_table(df, method):
         'hes_op': standardise_hes_op_table,
         'hes_ae': standardise_hes_ae_table,
         'ssnap': standardise_ssnap_table,
-        'sgss': standardise_sgss_table
-        'vaccine_status': standardise_vaccine_status_table,
+        'sgss': standardise_sgss_table,
+        'vaccine_status': standardise_vaccine_status_table
     }
     
     if method not in method_functions:
