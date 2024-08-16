@@ -155,7 +155,7 @@ def standardise_table(df, method):
     Args:
         df (pyspark.sql.DataFrame): The DataFrame to be standardised.
         method (str): The method used for standardization. Valid methods include: 
-            'deaths', 'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap', 'vaccine_status'.
+            'deaths', 'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap', 'sgss', 'vaccine_status'.
 
     Returns:
         pyspark.sql.DataFrame: The standardised DataFrame.
@@ -168,13 +168,14 @@ def standardise_table(df, method):
         'hes_op': standardise_hes_op_table,
         'hes_ae': standardise_hes_ae_table,
         'ssnap': standardise_ssnap_table,
-        'vaccine_status': standardise_vaccine_status_table
+        'sgss': standardise_sgss_table
+        'vaccine_status': standardise_vaccine_status_table,
     }
     
     if method not in method_functions:
         raise ValueError(
             f"'{method}' is not a recognised standardise_table method. "
-            f"Available methods: deaths, gdppr, hes_apc, hes_op, hes_ae, ssnap, vaccine_status"
+            f"Available methods: deaths, gdppr, hes_apc, hes_op, hes_ae, ssnap, sgss, vaccine_status"
         )
     
     return method_functions[method](df)
@@ -228,6 +229,13 @@ def standardise_ssnap_table(df):
     return(
         df
         .withColumnRenamed('Person_ID_DEID', 'person_id')
+        .transform(clean_column_names)
+    )
+
+def standardise_sgss_table(df):
+    return(
+        df
+        .withColumnRenamed('PERSON_ID_DEID', 'person_id')
         .transform(clean_column_names)
     )
 
