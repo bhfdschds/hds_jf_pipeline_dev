@@ -26,3 +26,9 @@ source: https://geoportal.statistics.gov.uk/datasets/ons::lsoa-2011-to-lsoa-2021
 An exact fit lookup between Output Areas (OA), Lower layer Super Output Areas (LSOA), Middle layer Super Output Areas (MSOA) and local authority districts (LAD) as at 31 December 2011 in England and Wales.
 
 source: https://geoportal.statistics.gov.uk/datasets/ons::output-area-2011-to-lsoa-to-msoa-to-lad-december-2011-exact-fit-lookup-in-ew/about
+
+### lsoa11_buasd11_bua11_rgn11_best_fit_lookup_england_wales.csv
+
+LSOA (2011) to BUASD to BUA to LAD to RGN (December 2011) Best Fit Lookup in EW
+
+source: https://geoportal.statistics.gov.uk/datasets/ons::lsoa-2011-to-buasd-to-bua-to-lad-to-rgn-december-2011-best-fit-lookup-in-ew/about
