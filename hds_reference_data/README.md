@@ -27,8 +27,14 @@ An exact fit lookup between Output Areas (OA), Lower layer Super Output Areas (L
 
 source: https://geoportal.statistics.gov.uk/datasets/ons::output-area-2011-to-lsoa-to-msoa-to-lad-december-2011-exact-fit-lookup-in-ew/about
 
+### lsoa01_buasd11_bua11_rgn11_best_fit_lookup_england_wales.csv
+
+A best fit lookup between 2001 Lower layer Super Output Areas (LSOA), built-up area sub-divisions (BUASD), built-up areas (BUA), local authority districts (LAD) and regions (RGN) as at 31 December 2011.
+
+source: https://geoportal.statistics.gov.uk/datasets/ons::lsoa-2001-to-buasd-to-bua-to-lad-to-rgn-december-2011-best-fit-lookup-in-ew/about
+
 ### lsoa11_buasd11_bua11_rgn11_best_fit_lookup_england_wales.csv
 
-LSOA (2011) to BUASD to BUA to LAD to RGN (December 2011) Best Fit Lookup in EW
+A best fit lookup between 2011 Lower layer Super Output Areas (LSOA), built-up area sub-divisions (BUASD), built-up areas (BUA), local authority districts (LAD) and regions (RGN) as at 31 December 2011.
 
 source: https://geoportal.statistics.gov.uk/datasets/ons::lsoa-2011-to-buasd-to-bua-to-lad-to-rgn-december-2011-best-fit-lookup-in-ew/about
