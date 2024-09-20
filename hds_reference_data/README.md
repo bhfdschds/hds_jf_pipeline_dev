@@ -1,12 +1,12 @@
 # hds_reference_data
 
-## Ethnicity mapping files (ethnicity_mapping)
+## ethnicity_mapping: Ethnicity mapping files
 
 ### ethnicity_categories_pre_2003
 ### ethnicity_categories
 ### ethnicity_categories_snomed_mapping
 
-## LSOA mapping files (lsoa_mapping)
+## lsoa_mapping: LSOA mapping files
 
 ### lsoa01_to_lsoa11_best_fit_lookup_england_wales
 A best fit lookup file between Lower layer Super Output Areas (LSOA) as at December 2001 and LSOAs as at December 2011 in England and Wales.
