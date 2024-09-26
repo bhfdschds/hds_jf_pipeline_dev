@@ -170,7 +170,8 @@ def standardise_table(df, method):
         'pillar_2': standardise_pillar_2_table,
         'ssnap': standardise_ssnap_table,
         'sgss': standardise_sgss_table,
-        'vaccine_status': standardise_vaccine_status_table
+        'vaccine_status': standardise_vaccine_status_table,
+        'primary_care_meds': standardise_primary_care_meds_table
     }
     
     if method not in method_functions:
@@ -255,4 +256,11 @@ def standardise_vaccine_status_table(df):
         .withColumn('recorded_date', f.to_date(f.col('recorded_date'), 'yyyyMMdd'))
         .withColumn('expiry_date', f.to_date(f.col('expiry_date'), 'yyyyMMdd'))
         .withColumn('date_and_time', f.to_timestamp(f.col('date_and_time'), "yyyyMMdd'T'HHmmssSS"))
+    )
+
+def standardise_primary_care_meds_table(df):
+    return(
+        df
+        .withColumnRenamed('Person_ID_DEID', 'person_id')
+        .transform(clean_column_names)
     )
