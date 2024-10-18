@@ -1,3 +1,4 @@
+from .cohort_construction import apply_inclusion_criteria, create_inclusion_columns, create_inclusion_flowchart
 from .csv_utils import read_csv_file, write_csv_file, create_dict_from_csv
 from .curate_gdppr_demographics import update_gdppr_demographics
 from .curate_date_of_birth import create_date_of_birth_multisource, create_date_of_birth_individual
