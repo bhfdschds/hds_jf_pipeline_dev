@@ -204,13 +204,13 @@ def create_inclusion_flowchart(
             f.countDistinct(f.when(f.col('value') == True, f.col(person_id_col))).alias('n_distinct_id')
         )
         .join(
-            f.broadcast(df_inclusion_criteria),  # Broadcasting for performance optimization
+            f.broadcast(df_inclusion_criteria),
             on='criteria', 
             how='left'
         )
         .withColumn('criteria_index', (f.regexp_extract('criteria', r'\d+', 0)).cast('int'))
-        .withColumn('excluded_rows', (f.col('n_row') - f.lag('n_row', 1).over(_win)).cast('int'))
-        .withColumn('excluded_ids', (f.col('n_distinct_id') - f.lag('n_distinct_id', 1).over(_win)).cast('int'))
+        .withColumn('excluded_rows', (f.lag('n_row', 1).over(_win) - f.col('n_row')).cast('int'))
+        .withColumn('excluded_ids', (f.lag('n_distinct_id', 1).over(_win) - f.col('n_distinct_id')).cast('int'))
         .select(
             'criteria_index', 'criteria', 'description', 'expression',
             'n_row', 'n_distinct_id', 'excluded_rows', 'excluded_ids'
