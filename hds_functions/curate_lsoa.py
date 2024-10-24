@@ -11,7 +11,7 @@ def create_lsoa_multisource(table_multisource: str = 'lsoa_multisource', extract
     Create a consolidated DataFrame containing LSOA data from multiple sources and save it to a table.
 
     Args:
-        table_multisource (str, optional): The name of the table to save the consolidated data. Defaults to 'lsoa_multisource'.
+        table_multisource (str, optional): The table key of the table to save the consolidated data. Defaults to 'lsoa_multisource'.
         extraction_methods (List[str], optional): List of methods for extracting LSOA data. Defaults to None.
 
     Returns:
@@ -217,23 +217,25 @@ def create_lsoa_individual(
     table_individual: str = 'lsoa_individual',
     min_record_date: str = '1900-01-01',
     max_record_date: str = 'current_date()', 
-    data_source: List[str] = None,
-    priority_index: Dict[str, int] = None,
+    filter_data_sources: List[str] = None,
+    priority_index: Dict[str, int] = {'gdppr': 1, 'hes_apc': 2, 'hes_op': 3, 'hes_ae': 3},
 ) -> None:
     """
     Wrapper function to create and save a table containing selected LSOA records for each individual.
 
     Args:
-        table_multisource (str): Name of the multisource LSOA table.
-        table_individual (str): Name of the individual LSOA table to be created.
-        min_record_date (str, optional): Minimum record date to consider. Defaults to '1900-01-01'.
-        max_record_date (str, optional): Maximum record date to consider. Defaults to 'current_date()'.
-        data_source (List[str], optional): List of allowed data sources to consider when selecting LSOA records. 
-            If specified, only records from the specified data sources will be included in the selection process. 
+        table_multisource (str): Table key of the multisource LSOA table.
+        table_individual (str): Table key of the individual LSOA table to be created.
+        min_record_date (str, optional): Expression for minimum record date. Defaults to '1900-01-01'.
+        max_record_date (str, optional): Expression for maximum record date. Defaults to 'current_date()'.
+        filter_data_sources (List[str], optional): List of data sources to include when selecting LSOA records. 
+            If specified, only records in the list will be included in the selection process. 
             If None, records from all available data sources will be considered. 
             Defaults to None.
-        priority_index (Dict[str, int], optional): Priority mapping for data sources; lower indices are prioritised.
-            Defaults to None.
+        priority_index (Dict[str, int], optional): A dictionary mapping data sources to their priority levels.
+            Lower integer values indicate higher priority. Data sources not included in the dictionary 
+            are deprioritised and assigned a null priority index. Defaults to the following priority mapping:
+            {'gdppr': 1, 'hes_apc': 2, 'hes_op': 3, 'hes_ae': 3}.
     """
 
     # Load multisource LSOA table
@@ -244,7 +246,7 @@ def create_lsoa_individual(
         lsoa_multisource,
         min_record_date=min_record_date,
         max_record_date=max_record_date,
-        data_source=data_source,
+        filter_data_sources=filter_data_sources,
         priority_index=priority_index
     )
 
@@ -256,22 +258,24 @@ def lsoa_record_selection(
     lsoa_multisource: DataFrame,
     min_record_date: str = '1900-01-01',
     max_record_date: str = 'current_date()', 
-    data_source: List[str] = None,
-    priority_index: Dict[str, int] = None,
+    filter_data_sources: List[str] = None,
+    priority_index: Dict[str, int] = {'gdppr': 1, 'hes_apc': 2, 'hes_op': 3, 'hes_ae': 3},
 ) -> DataFrame:
     """
     Selects a single record for each individual from the multisource LSOA DataFrame based on specified criteria.
 
     Args:
         lsoa_multisource (DataFrame): DataFrame containing LSOA data from multiple sources.
-        min_record_date (str, optional): Minimum record date to consider. Defaults to '1900-01-01'.
-        max_record_date (str, optional): Maximum record date to consider. Defaults to 'current_date()'.
-        data_source (List[str], optional): List of allowed data sources to consider when selecting LSOA records. 
-            If specified, only records from the specified data sources will be included in the selection process. 
+        min_record_date (str, optional): Expression for minimum record date. Defaults to '1900-01-01'.
+        max_record_date (str, optional): Expression for maximum record date. Defaults to 'current_date()'.
+        filter_data_sources (List[str], optional): List of data sources to include when selecting ethnicity records. 
+            If specified, only records in the list will be included in the selection process. 
             If None, records from all available data sources will be considered. 
             Defaults to None.
-        priority_index (Dict[str, int], optional): Priority mapping for data sources; lower indices are prioritised.
-            Defaults to None.
+        priority_index (Dict[str, int], optional): A dictionary mapping data sources to their priority levels.
+            Lower integer values indicate higher priority. Data sources not included in the dictionary 
+            are deprioritised and assigned a null priority index. Defaults to the following priority mapping:
+            {'gdppr': 1, 'hes_apc': 2, 'hes_op': 3, 'hes_ae': 3}.
 
     Returns:
         DataFrame: DataFrame containing the selected LSOA records for each individual.
@@ -280,12 +284,31 @@ def lsoa_record_selection(
     # Allowed data sources
     allowed_sources = {'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'vaccine_status'}
 
-    # Validate data_source argument
-    if data_source is not None:
-        assert isinstance(data_source, list), "data_source must be a list."
-        assert data_source is None or data_source, "data_source cannot be an empty list."
-        invalid_sources = [str(source) for source in data_source if source not in allowed_sources or not isinstance(source, str)]
-        assert not invalid_sources, f"Invalid data sources: {invalid_sources}. Allowed sources are: {allowed_sources}."
+    # Validate filter_data_sources argument
+    if filter_data_sources is not None:
+        # Ensure filter_data_sources is a list
+        if not isinstance(filter_data_sources, list):
+            raise ValueError("filter_data_sources must be a list.")
+        
+        # Ensure filter_data_sources is not an empty list
+        if not filter_data_sources:
+            raise ValueError("filter_data_sources cannot be an empty list.")
+        
+        # Check for invalid data sources
+        invalid_sources = [str(source) for source in filter_data_sources if source not in allowed_sources or not isinstance(source, str)]
+        if invalid_sources:
+            raise ValueError(f"Invalid data sources: {invalid_sources}. Allowed sources are: {allowed_sources}.")
+
+    # Validate priority_index argument
+    if priority_index is not None:
+        # Ensure that all values in priority_index are integers
+        if not all(isinstance(value, int) for value in priority_index.values()):
+            raise ValueError("Not all values in priority_index are integers.")
+        
+        # Ensure all keys in priority_index are valid data sources
+        invalid_keys = [key for key in priority_index.keys() if key not in allowed_sources]
+        if invalid_keys:
+            raise ValueError(f"Invalid keys in priority_index: {invalid_keys}. Allowed keys are: {allowed_sources}.")
 
     # Filter out anomalous records
     lsoa_multisource = (
@@ -309,10 +332,10 @@ def lsoa_record_selection(
         )
 
     # Apply data source restrictions
-    if data_source is not None:
+    if filter_data_sources is not None:
         lsoa_multisource = (
             lsoa_multisource
-            .filter(f.col('data_source').isin(data_source))
+            .filter(f.col('data_source').isin(filter_data_sources))
         )
 
     # Map source priority
@@ -322,11 +345,6 @@ def lsoa_record_selection(
             .withColumn('source_priority', f.lit(None))
         )
     else:
-        # Check valid keys and values in priority_index
-        assert all(isinstance(value, int) for value in priority_index.values()), "Not all values in priority_index are integers"
-        invalid_keys = [key for key in priority_index.keys() if key not in allowed_sources]
-        assert not invalid_keys, f"Invalid keys: {invalid_keys}. Allowed keys are: {allowed_sources}."
-
         lsoa_multisource = (
             lsoa_multisource
             .transform(map_column_values, map_dict = priority_index, column = 'data_source', new_column = 'source_priority')
