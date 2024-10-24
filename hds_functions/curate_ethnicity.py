@@ -12,7 +12,7 @@ def create_ethnicity_multisource(table_multisource: str = 'ethnicity_multisource
     Create a consolidated DataFrame containing ethnicity data from multiple sources and save it to a table.
 
     Args:
-        table_multisource (str, optional): The name of the table to save the consolidated data. Defaults to 'ethnicity_multisource'.
+        table_multisource (str, optional): The table key of the table to save the consolidated data. Defaults to 'ethnicity_multisource'.
         extraction_methods (List[str], optional): List of methods for extracting ethnicity data. Defaults to None.
 
     Returns:
@@ -343,7 +343,7 @@ def create_ethnicity_individual(
     table_individual: str = 'ethnicity_individual',
     min_record_date: str = '1900-01-01',
     max_record_date: str = 'current_date()', 
-    data_source: List[str] = None,
+    filter_data_sources: List[str] = None,
     ethnicity_18_null_codes: List[str] = ['', 'X', 'Z', '99'],
     priority_index: Dict[str, int] = {'gdppr_snomed': 1, 'gdppr': 2, 'hes_apc': 3, 'hes_op': 4, 'hes_ae': 4},
 ):
@@ -351,17 +351,19 @@ def create_ethnicity_individual(
     Wrapper function to create and save a table containing selected ethnicity records for each individual.
 
     Args:
-        table_multisource (str): Name of the multisource ethnicity table.
-        table_individual (str): Name of the individual ethnicity table to be created.
-        min_record_date (str, optional): Minimum record date to consider. Defaults to '1900-01-01'.
-        max_record_date (str, optional): Maximum record date to consider. Defaults to 'current_date()'.
-        data_source (List[str], optional): List of allowed data sources to consider when selecting ethnicity records. 
-            If specified, only records from the specified data sources will be included in the selection process. 
+        table_multisource (str): Table key of the multisource ethnicity table.
+        table_individual (str): Table key of the individual ethnicity table to be created.
+        min_record_date (str, optional): Expression for minimum record date. Defaults to '1900-01-01'.
+        max_record_date (str, optional): Expression for maximum record date. Defaults to 'current_date()'.
+        filter_data_sources (List[str], optional): List of data sources to include when selecting ethnicity records. 
+            If specified, only records in the list will be included in the selection process. 
             If None, records from all available data sources will be considered. 
             Defaults to None.
         ethnicity_18_null_codes (List[str], optional): List of indeterminate ethnicity_18 codes that will be removed from selection.  
-        priority_index (Dict[str, int], optional): Priority mapping for data sources; lower indices are prioritised.
-            Defaults to {'gdppr_snomed': 1, 'gdppr': 2, 'hes_apc': 3, 'hes_op': 4, 'hes_ae': 4}.
+        priority_index (Dict[str, int], optional): A dictionary mapping data sources to their priority levels.
+            Lower integer values indicate higher priority. Data sources not included in the dictionary 
+            are deprioritised and assigned a null priority index. Defaults to the following priority mapping:
+            {'gdppr_snomed': 1, 'gdppr': 2, 'hes_apc': 3, 'hes_op': 4, 'hes_ae': 4}.
     """
 
     # Load multisource ethnicity table
@@ -372,7 +374,7 @@ def create_ethnicity_individual(
         ethnicity_multisource,
         min_record_date=min_record_date,
         max_record_date=max_record_date,
-        data_source=data_source,
+        filter_data_sources=filter_data_sources,
         ethnicity_18_null_codes=ethnicity_18_null_codes,
         priority_index=priority_index
     )
@@ -385,7 +387,7 @@ def ethnicity_record_selection(
     ethnicity_multisource: DataFrame,
     min_record_date: str = '1900-01-01',
     max_record_date: str = 'current_date()', 
-    data_source: List[str] = None,
+    filter_data_sources: List[str] = None,
     ethnicity_18_null_codes: List[str] = ['', 'X', 'Z', '99'],
     priority_index: Dict[str, int] = {'gdppr_snomed': 1, 'gdppr': 2, 'hes_apc': 3, 'hes_op': 4, 'hes_ae': 4},
 ) -> DataFrame:
@@ -394,27 +396,51 @@ def ethnicity_record_selection(
 
     Args:
         ethnicity_multisource (DataFrame): DataFrame containing ethnicity data from multiple sources.
-        min_record_date (str, optional): Minimum record date to consider. Defaults to '1900-01-01'.
-        max_record_date (str, optional): Maximum record date to consider. Defaults to 'current_date()'.
-        data_source (List[str], optional): List of allowed data sources to consider when selecting ethnicity records. 
-            If specified, only records from the specified data sources will be included in the selection process. 
+        min_record_date (str, optional): Expression for minimum record date. Defaults to '1900-01-01'.
+        max_record_date (str, optional): Expression for maximum record date. Defaults to 'current_date()'.
+        filter_data_sources (List[str], optional): List of data sources to include when selecting ethnicity records. 
+            If specified, only records in the list will be included in the selection process. 
             If None, records from all available data sources will be considered. 
             Defaults to None.
-        ethnicity_18_null_codes (List[str], optional): List of indeterminate ethnicity_18 codes that will be removed from selection.     
-        priority_index (Dict[str, int], optional): Priority mapping for data sources; lower indices are prioritised.
-            Defaults to {'gdppr_snomed': 1, 'gdppr': 2, 'hes_apc': 3, 'hes_op': 4, 'hes_ae': 4}.
+        ethnicity_18_null_codes (List[str], optional): List of indeterminate ethnicity_18 codes that will be removed from selection.
+            Defaults to ['', 'X', 'Z', '99']
+        priority_index (Dict[str, int], optional): A dictionary mapping data sources to their priority levels.
+            Lower integer values indicate higher priority. Data sources not included in the dictionary 
+            are deprioritised and assigned a null priority index. Defaults to the following priority mapping:
+            {'gdppr_snomed': 1, 'gdppr': 2, 'hes_apc': 3, 'hes_op': 4, 'hes_ae': 4}.
 
     Returns:
         DataFrame: DataFrame containing the selected ethnicity records for each individual.
     """
 
-    # Validate data_source argument
-    if data_source is not None:
-        assert isinstance(data_source, list), "data_source must be a list."
-        assert data_source is None or data_source, "data_source cannot be an empty list."
-        allowed_sources = {'gdppr_snomed', 'gdppr', 'hes_apc', 'hes_op', 'hes_ae'}
-        invalid_sources = [str(source) for source in data_source if source not in allowed_sources or not isinstance(source, str)]
-        assert not invalid_sources, f"Invalid data sources: {invalid_sources}. Allowed sources are: {allowed_sources}."
+    # Allowed data sources
+    allowed_sources = {'gdppr_snomed', 'gdppr', 'hes_apc', 'hes_op', 'hes_ae'}
+
+    # Validate filter_data_sources argument
+    if filter_data_sources is not None:
+        # Ensure filter_data_sources is a list
+        if not isinstance(filter_data_sources, list):
+            raise ValueError("filter_data_sources must be a list.")
+        
+        # Ensure filter_data_sources is not an empty list
+        if not filter_data_sources:
+            raise ValueError("filter_data_sources cannot be an empty list.")
+        
+        # Check for invalid data sources
+        invalid_sources = [str(source) for source in filter_data_sources if source not in allowed_sources or not isinstance(source, str)]
+        if invalid_sources:
+            raise ValueError(f"Invalid data sources: {invalid_sources}. Allowed sources are: {allowed_sources}.")
+
+    # Validate priority_index argument
+    if priority_index is not None:
+        # Ensure that all values in priority_index are integers
+        if not all(isinstance(value, int) for value in priority_index.values()):
+            raise ValueError("Not all values in priority_index are integers.")
+        
+        # Ensure all keys in priority_index are valid data sources
+        invalid_keys = [key for key in priority_index.keys() if key not in allowed_sources]
+        if invalid_keys:
+            raise ValueError(f"Invalid keys in priority_index: {invalid_keys}. Allowed keys are: {allowed_sources}.")
 
     # Filter out anomalous records
     ethnicity_multisource = (
@@ -444,10 +470,10 @@ def ethnicity_record_selection(
         )
 
     # Apply data source restrictions
-    if data_source is not None:
+    if filter_data_sources is not None:
         ethnicity_multisource = (
             ethnicity_multisource
-            .filter(f.col('data_source').isin(data_source))
+            .filter(f.col('data_source').isin(filter_data_sources))
         )
 
     # Map source priority
