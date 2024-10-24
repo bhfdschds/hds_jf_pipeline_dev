@@ -281,7 +281,10 @@ def vaccine_status_date_of_birth(vaccine_status: DataFrame) -> DataFrame:
         .select(
             'person_id',
             f.col('recorded_date').alias('record_date'),
-            f.to_date('mydob', 'MMyyyy').alias('date_of_birth')
+            f.when(
+                f.col('mydob').rlike('\d{6}'),
+                f.to_date(f.col('mydob'), 'MMyyyy')
+            ).alias('date_of_birth')
         )
         .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL) AND (date_of_birth IS NOT NULL)")
         .distinct()
