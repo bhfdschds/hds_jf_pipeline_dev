@@ -18,7 +18,7 @@ def create_lsoa_multisource(table_multisource: str = 'lsoa_multisource', extract
         None
     """
     if extraction_methods is None:
-        extraction_methods = ['gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap', 'vaccine_status']
+        extraction_methods = ['gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'vaccine_status']
 
     # Extract LSOA data from multiple sources
     lsoa_from_sources = [extract_lsoa(method) for method in extraction_methods]
@@ -34,7 +34,7 @@ def extract_lsoa(extract_method: str) -> DataFrame:
 
     Args:
         extract_method (str): The method to extract LSOA data from.
-            Allowed values are: 'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap', 'vaccine_status'.
+            Allowed values are: 'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'vaccine_status'.
 
     Returns:
         DataFrame: DataFrame containing the extracted LSOA data from the selected source.
@@ -63,11 +63,6 @@ def extract_lsoa(extract_method: str) -> DataFrame:
             'data_source': 'hes_ae',
             'load_method': 'hes_ae'
         },
-        'ssnap': {
-            'extraction_function': ssnap_lsoa,
-            'data_source': 'ssnap',
-            'load_method': 'ssnap'
-        },
         'vaccine_status': {
             'extraction_function': vaccine_status_lsoa,
             'data_source': 'vaccine_status',
@@ -78,7 +73,7 @@ def extract_lsoa(extract_method: str) -> DataFrame:
     if extract_method not in extraction_methods:
         raise ValueError(
             f"Invalid extract_method: {extract_method}. Allowed values are: "
-            "'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap', 'vaccine_status'."
+            "'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'vaccine_status'."
         )
 
     return extraction_methods[extract_method]['extraction_function'](
@@ -189,32 +184,6 @@ def hes_ae_lsoa(hes_ae: DataFrame) -> DataFrame:
 
     return lsoa_hes_ae
 
-def ssnap_lsoa(ssnap: DataFrame) -> DataFrame:
-    """
-    Process the LSOA data from the SSNAP (Sentinel Stroke National Audit Programme) table, ensuring distinct
-    records.
-
-    Args:
-        ssnap (DataFrame): DataFrame containing the ssnap table data.
-
-    Returns:
-        DataFrame: Processed DataFrame with metadata added.
-    """
-
-    lsoa_ssnap = (
-        ssnap
-        .select(
-            'person_id',
-            f.to_date('s1firstarrivaldatetime').alias('record_date'),
-            f.col('lsoa_of_residence').alias('lsoa')
-        )
-        .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL) AND (lsoa IS NOT NULL)")
-        .distinct()
-        .withColumn('data_source', f.lit('ssnap'))
-    )
-
-    return lsoa_ssnap
-
 
 def vaccine_status_lsoa(vaccine_status: DataFrame) -> DataFrame:
     """
@@ -309,7 +278,7 @@ def lsoa_record_selection(
     """
 
     # Allowed data sources
-    allowed_sources = {'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'ssnap', 'vaccine_status'}
+    allowed_sources = {'gdppr', 'hes_apc', 'hes_op', 'hes_ae', 'vaccine_status'}
 
     # Validate data_source argument
     if data_source is not None:
