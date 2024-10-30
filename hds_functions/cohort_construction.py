@@ -32,7 +32,7 @@ def apply_inclusion_criteria(
     Args:
         cohort (DataFrame): The input DataFrame containing cohort data.
         inclusion_criteria (dict[str, str]): A dictionary of inclusion criteria where keys are column names and values are SQL expressions.
-        flowchart_table (str, optional): The name of the flowchart table to save (if any). Defaults to None.
+        flowchart_table (str, optional): The table key of the flowchart table to save (if any). Defaults to None.
         row_id_col (str, optional): The name of the row identifier column. Defaults to 'row_id'.
         person_id_col (str, optional): The name of the person identifier column. Defaults to 'person_id'.
         drop_inclusion_flags (bool, optional): If True, drop the inclusion criteria columns after filtering. Defaults to True.
@@ -183,7 +183,7 @@ def create_inclusion_flowchart(
     )
 
     # Define the window for lag functions
-    _win = Window.orderBy('criteria')
+    _win = Window.orderBy('criteria_index')
 
     # Define identifying columns for unpivot (usually the row and person identifiers)
     id_cols = [row_id_col, person_id_col]
