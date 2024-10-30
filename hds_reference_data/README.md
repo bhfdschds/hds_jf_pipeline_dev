@@ -38,3 +38,9 @@ source: https://geoportal.statistics.gov.uk/datasets/ons::lsoa-2001-to-buasd-to-
 A best fit lookup between 2011 Lower layer Super Output Areas (LSOA), built-up area sub-divisions (BUASD), built-up areas (BUA), local authority districts (LAD) and regions (RGN) as at 31 December 2011.
 
 source: https://geoportal.statistics.gov.uk/datasets/ons::lsoa-2011-to-buasd-to-bua-to-lad-to-rgn-december-2011-best-fit-lookup-in-ew/about
+
+### lsoa11_imd19_OSGB1936.csv
+
+Datafile containing 2019 Index of Multiple Deprivation (IMD) for 2019. Geography is at Lower Super Output Area (LSOA) Level.
+
+source: https://communitiesopendata-communities.hub.arcgis.com/datasets/9d1e0d9a2b3745c7b4f1f76056b6bef2_0/about
