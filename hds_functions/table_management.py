@@ -171,13 +171,14 @@ def standardise_table(df, method):
         'ssnap': standardise_ssnap_table,
         'sgss': standardise_sgss_table,
         'vaccine_status': standardise_vaccine_status_table,
-        'primary_care_meds': standardise_primary_care_meds_table
+        'primary_care_meds': standardise_primary_care_meds_table,
+        'chess': standardise_chess_table
     }
     
     if method not in method_functions:
         raise ValueError(
             f"'{method}' is not a recognised standardise_table method. "
-            f"Available methods: deaths, gdppr, hes_apc, hes_op, hes_ae, pillar_2, ssnap, sgss, vaccine_status"
+            f"Available methods: deaths, gdppr, hes_apc, hes_op, hes_ae, pillar_2, ssnap, sgss, vaccine_status, primary_care_meds, chess"
         )
     
     return method_functions[method](df)
@@ -263,4 +264,12 @@ def standardise_primary_care_meds_table(df):
         df
         .withColumnRenamed('Person_ID_DEID', 'person_id')
         .transform(clean_column_names)
+    )
+
+def standardise_chess_table(df):
+    return(
+        df
+        .withColumnRenamed('PERSON_ID_DEID', 'person_id')
+        .transform(clean_column_names)
+
     )
