@@ -1,7 +1,7 @@
 code,description,test_result
 1240581000000104,Severe acute respiratory syndrome coronavirus 2 detected (finding),Positive
 1240591000000102,Severe acute respiratory syndrome coronavirus 2 not detected (finding),Negative
-1321691000000102,Severe acute respiratory syndrome coronavirus 2 ribonucleic acid detection result unknown (finding),Void
+1321691000000102,Severe acute respiratory syndrome coronavirus 2 ribonucleic acid detection result unknown (finding),Unknown
 1322781000000102,Severe acute respiratory syndrome coronavirus 2 antigen detection result positive (finding),Positive
 1322791000000100,Severe acute respiratory syndrome coronavirus 2 antigen detection result negative (finding),Negative
-1322821000000105,Severe acute respiratory syndrome coronavirus 2 antigen detection result unknown (finding),Void
+1322821000000105,Severe acute respiratory syndrome coronavirus 2 antigen detection result unknown (finding),Unknown
