@@ -1,6 +1,7 @@
 from pyspark.sql import functions as f, DataFrame, Window
 from functools import reduce
 from typing import List, Dict
+from .environment_utils import get_spark_session
 from .table_management import load_table, save_table
 from .date_functions import parse_date_instruction
 from .data_aggregation import first_row, first_dense_rank
@@ -21,12 +22,18 @@ def create_ethnicity_multisource(table_multisource: str = 'ethnicity_multisource
     if extraction_methods is None:
         extraction_methods = ['gdppr_snomed', 'gdppr', 'hes_apc', 'hes_op', 'hes_ae']
 
+    # Get spark session
+    spark = get_spark_session()
+
     # Extract ethnicity data from multiple sources
     ethnicity_from_sources = [extract_ethnicity(method) for method in extraction_methods]
     ethnicity_multisource = reduce(DataFrame.unionByName, ethnicity_from_sources)
 
     # Save the consolidated data to a table
     save_table(ethnicity_multisource, table_multisource)
+
+    # Clear cache
+    spark.catalog.clearCache()
 
 
 def extract_ethnicity(extract_method: str) -> DataFrame:
@@ -121,6 +128,12 @@ def gdppr_snomed_ethnicity(gdppr: DataFrame) -> DataFrame:
         )
         .drop('date')
         .join(codelist_ethnicity, on = 'code', how = 'inner')
+    )
+
+    ethnicity_gdppr_snomed.cache()
+
+    ethnicity_gdppr_snomed = (
+        ethnicity_gdppr_snomed
         .filter("(person_id IS NOT NULL) AND (record_date IS NOT NULL)")
         .distinct()
         .withColumnRenamed('code', 'ethnicity_raw_code')

@@ -12,6 +12,7 @@ Description:
 from pyspark.sql import functions as f, DataFrame
 from functools import reduce
 from typing import List
+from .environment_utils import get_spark_session
 from .table_management import load_table, save_table
 from .csv_utils import read_csv_file
 
@@ -33,12 +34,18 @@ def create_covid_positive_table(table_key: str = 'covid_positive', extraction_me
     if extraction_methods is None:
         extraction_methods = ['sgss', 'pillar_2', 'gdppr', 'hes_apc_diagnosis', 'chess']
 
+    # Get spark session
+    spark = get_spark_session()
+
     # Extract COVID-19 records from multiple sources
     covid_positive_from_sources = [extract_covid_positive_records(method) for method in extraction_methods]
     covid_positive = reduce(DataFrame.unionByName, covid_positive_from_sources)
 
     # Save the consolidated data to a table
     save_table(covid_positive, table_key)
+
+    # Clear cache
+    spark.catalog.clearCache()
 
 
 def extract_covid_positive_records(extract_method: str) -> DataFrame:
@@ -158,6 +165,12 @@ def covid_positive_from_pillar_2(pillar_2: DataFrame) -> DataFrame:
             f.broadcast(covid_19_antigen_testing_snomed),
             on = 'code', how = 'left'
         )
+    )
+
+    covid_positive_pillar_2.cache()
+
+    covid_positive_pillar_2 = (
+        covid_positive_pillar_2
         .withColumn(
             'test_result',
             f.when(f.col('test_result').isNull(), f.col('test_result_original'))
@@ -197,6 +210,12 @@ def covid_positive_from_gdppr(gdppr: DataFrame) -> DataFrame:
             f.broadcast(covid_19_infection_snomed_codelist),
             on = 'code', how = 'inner'
         )
+    )
+
+    covid_positive_gdppr.cache()
+
+    covid_positive_gdppr = (
+        covid_positive_gdppr
         .filter("(person_id IS NOT NULL) AND (date IS NOT NULL)")
         .select('person_id', 'date', 'code', 'description', 'covid_status')
         .distinct()
@@ -229,6 +248,12 @@ def covid_positive_from_hes_apc_diagnosis(hes_apc_diagnosis: DataFrame) -> DataF
             f.broadcast(covid_19_infection_icd10_codelist),
             on = 'code', how = 'inner'
         )
+    )
+
+    covid_positive_hes_apc_diagnosis.cache()
+
+    covid_positive_hes_apc_diagnosis = (
+        covid_positive_hes_apc_diagnosis
         .filter("(person_id IS NOT NULL) AND (date IS NOT NULL)")
         .select('person_id', 'date', 'code', 'description', 'covid_status')
         .distinct()
