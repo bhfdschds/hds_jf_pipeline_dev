@@ -26,13 +26,13 @@ def create_covid_positive_table(table_key: str = 'covid_positive', extraction_me
             Defaults to 'covid_positive'.
         extraction_methods (List[str], optional): List of methods for extracting positive COVID-19 records.
             Defaults to None.
-            Allowed values are: 'sgss', 'pillar_2', 'gdppr', 'hes_apc_diagnosis', 'chess'.
+            Allowed values are: 'sgss', 'pillar_2', 'gdppr', 'hes_apc_any_diagnosis', 'hes_apc_primary_diagnosis', 'chess'.
 
     Returns:
         None
     """
     if extraction_methods is None:
-        extraction_methods = ['sgss', 'pillar_2', 'gdppr', 'hes_apc_diagnosis', 'chess']
+        extraction_methods = ['sgss', 'pillar_2', 'gdppr', 'hes_apc_any_diagnosis', 'hes_apc_primary_diagnosis' 'chess']
 
     # Get spark session
     spark = get_spark_session()
@@ -54,7 +54,7 @@ def extract_covid_positive_records(extract_method: str) -> DataFrame:
 
     Args:
         extract_method (str): The data source to extract sex data from.
-            Allowed values are: 'sgss', 'pillar_2', 'gdppr', 'hes_apc_diagnosis', 'chess'.
+            Allowed values are: 'sgss', 'pillar_2', 'gdppr', 'hes_apc_any_diagnosis', 'hes_apc_primary_diagnosis', 'chess'.
 
     Returns:
         DataFrame: DataFrame containing the extracted COVID-19 positive records.
@@ -78,8 +78,13 @@ def extract_covid_positive_records(extract_method: str) -> DataFrame:
             'data_source': 'gdppr',
             'load_method': 'gdppr'
         },
-        'hes_apc_diagnosis': {
-            'extraction_function': covid_positive_from_hes_apc_diagnosis,
+        'hes_apc_any_diagnosis': {
+            'extraction_function': covid_positive_from_hes_apc_any_diagnosis,
+            'data_source': 'hes_apc_diagnosis',
+            'load_method': None
+        },
+        'hes_apc_primary_diagnosis': {
+            'extraction_function': covid_positive_from_hes_apc_primary_diagnosis,
             'data_source': 'hes_apc_diagnosis',
             'load_method': None
         },
@@ -90,8 +95,11 @@ def extract_covid_positive_records(extract_method: str) -> DataFrame:
         }
     }
 
-    if extract_method not in extraction_methods:
-        raise ValueError(f"Invalid extract_method: {extract_method}. Allowed values are: 'sgss', 'pillar_2', 'gdppr', 'hes_apc_diagnosis', 'chess'.")
+if extract_method not in extraction_methods:
+    raise ValueError(
+        f"Invalid extract_method: {extract_method}. Allowed values are: 'sgss', 'pillar_2', 'gdppr', "
+        "'hes_apc_any_diagnosis', 'hes_apc_primary_diagnosis', 'chess'."
+    )
 
     return extraction_methods[extract_method]['extraction_function'](
         load_table(
@@ -225,9 +233,10 @@ def covid_positive_from_gdppr(gdppr: DataFrame) -> DataFrame:
     return covid_positive_gdppr
 
 
-def covid_positive_from_hes_apc_diagnosis(hes_apc_diagnosis: DataFrame) -> DataFrame:
+def covid_positive_from_hes_apc_any_diagnosis(hes_apc_diagnosis: DataFrame) -> DataFrame:
     """
-    Extract COVID-19 positive records from the HES-APC diagnosis table, ensuring distinct records.
+    Extract COVID-19 positive records from the HES-APC diagnosis table, accepting any diagnosis position,
+    and ensuring distinct records.
 
     Args:
         hes_apc_diagnosis (DataFrame): DataFrame containing HES-APC diagnosis table.
@@ -241,7 +250,7 @@ def covid_positive_from_hes_apc_diagnosis(hes_apc_diagnosis: DataFrame) -> DataF
         .select('code', 'description', 'covid_status')
     )
 
-    covid_positive_hes_apc_diagnosis = (
+    covid_positive_hes_apc_matched = (
         hes_apc_diagnosis
         .select('person_id', f.col('epistart').alias('date'), 'code')
         .join(
@@ -250,17 +259,57 @@ def covid_positive_from_hes_apc_diagnosis(hes_apc_diagnosis: DataFrame) -> DataF
         )
     )
 
-    covid_positive_hes_apc_diagnosis.cache()
+    covid_positive_hes_apc_matched.cache()
 
-    covid_positive_hes_apc_diagnosis = (
-        covid_positive_hes_apc_diagnosis
+    covid_positive_hes_apc_any_diagnosis = (
+        covid_positive_hes_apc_matched
         .filter("(person_id IS NOT NULL) AND (date IS NOT NULL)")
         .select('person_id', 'date', 'code', 'description', 'covid_status')
         .distinct()
-        .withColumn('data_source', f.lit('hes_apc_diagnosis'))
+        .withColumn('data_source', f.lit('hes_apc_any_diagnosis'))
     )
 
-    return covid_positive_hes_apc_diagnosis
+    return covid_positive_hes_apc_any_diagnosis
+
+
+def covid_positive_from_hes_apc_any_diagnosis(hes_apc_diagnosis: DataFrame) -> DataFrame:
+    """
+    Extract COVID-19 positive records from the HES-APC diagnosis table, accepting any diagnosis position,
+    and ensuring distinct records.
+
+    Args:
+        hes_apc_diagnosis (DataFrame): DataFrame containing HES-APC diagnosis table.
+
+    Returns:
+        DataFrame: Processed DataFrame with metadata added.
+    """
+
+    covid_19_infection_icd10_codelist = (
+        read_csv_file("./codelists/covid_19_infection_icd10.csv")
+        .select('code', 'description', 'covid_status')
+    )
+
+    covid_positive_hes_apc_matched = (
+        hes_apc_diagnosis
+        .select('person_id', f.col('epistart').alias('date'), 'code', 'diag_position')
+        .filter("diag_position = 1")
+        .join(
+            f.broadcast(covid_19_infection_icd10_codelist),
+            on = 'code', how = 'inner'
+        )
+    )
+
+    covid_positive_hes_apc_matched.cache()
+
+    covid_positive_hes_apc_primary_diagnosis = (
+        covid_positive_hes_apc_matched
+        .filter("(person_id IS NOT NULL) AND (date IS NOT NULL)")
+        .select('person_id', 'date', 'code', 'description', 'covid_status')
+        .distinct()
+        .withColumn('data_source', f.lit('hes_apc_primary_diagnosis'))
+    )
+
+    return covid_positive_hes_apc_primary_diagnosis
 
 
 def covid_positive_from_chess(chess: DataFrame) -> DataFrame:
