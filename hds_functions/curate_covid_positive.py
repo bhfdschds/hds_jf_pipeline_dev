@@ -32,7 +32,7 @@ def create_covid_positive_table(table_key: str = 'covid_positive', extraction_me
         None
     """
     if extraction_methods is None:
-        extraction_methods = ['sgss', 'pillar_2', 'gdppr', 'hes_apc_any_diagnosis', 'hes_apc_primary_diagnosis' 'chess']
+        extraction_methods = ['sgss', 'pillar_2', 'gdppr', 'hes_apc_any_diagnosis', 'hes_apc_primary_diagnosis', 'chess']
 
     # Get spark session
     spark = get_spark_session()
@@ -95,11 +95,11 @@ def extract_covid_positive_records(extract_method: str) -> DataFrame:
         }
     }
 
-if extract_method not in extraction_methods:
-    raise ValueError(
-        f"Invalid extract_method: {extract_method}. Allowed values are: 'sgss', 'pillar_2', 'gdppr', "
-        "'hes_apc_any_diagnosis', 'hes_apc_primary_diagnosis', 'chess'."
-    )
+    if extract_method not in extraction_methods:
+        raise ValueError(
+            f"Invalid extract_method: {extract_method}. Allowed values are: 'sgss', 'pillar_2', 'gdppr', "
+            "'hes_apc_any_diagnosis', 'hes_apc_primary_diagnosis', 'chess'."
+        )
 
     return extraction_methods[extract_method]['extraction_function'](
         load_table(
@@ -272,9 +272,9 @@ def covid_positive_from_hes_apc_any_diagnosis(hes_apc_diagnosis: DataFrame) -> D
     return covid_positive_hes_apc_any_diagnosis
 
 
-def covid_positive_from_hes_apc_any_diagnosis(hes_apc_diagnosis: DataFrame) -> DataFrame:
+def covid_positive_from_hes_apc_primary_diagnosis(hes_apc_diagnosis: DataFrame) -> DataFrame:
     """
-    Extract COVID-19 positive records from the HES-APC diagnosis table, accepting any diagnosis position,
+    Extract COVID-19 positive records from the HES-APC diagnosis table, restricting to primary diagnosis,
     and ensuring distinct records.
 
     Args:
