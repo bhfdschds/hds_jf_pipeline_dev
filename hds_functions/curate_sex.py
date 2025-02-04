@@ -143,7 +143,8 @@ def hes_apc_sex(hes_apc: DataFrame) -> DataFrame:
                 '1': 'M',
                 '2': 'F',
                 '3': 'I',
-                '9': 'I'
+                '9': 'I',
+                'X': None
             },
             subset = ['sex']
         )
@@ -179,7 +180,8 @@ def hes_op_sex(hes_op: DataFrame) -> DataFrame:
                 '0': None,
                 '1': 'M',
                 '2': 'F',
-                '9': 'I'
+                '9': 'I',
+                'X': None
             },
             subset = ['sex']
         )
@@ -216,7 +218,8 @@ def hes_ae_sex(hes_ae: DataFrame) -> DataFrame:
                 '1': 'M',
                 '2': 'F',
                 '3': 'I',
-                '9': 'I'
+                '9': 'I',
+                'X': None
             },
             subset = ['sex']
         )
