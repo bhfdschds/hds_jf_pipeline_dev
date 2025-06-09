@@ -10,4 +10,5 @@ from .data_aggregation import first_row
 from .data_privacy import round_counts_to_multiple, redact_low_counts
 from .data_wrangling import melt, clean_column_names, map_column_values
 from .json_utils import read_json_file, write_json_file
+from .logger_utils import setup_logging, close_logging, archive_logging
 from .table_management import load_table, save_table
