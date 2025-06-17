@@ -94,5 +94,5 @@ def write_json_file(data: Dict[str, Any], path: str, repo: str = None, indent: i
         raise ValueError(f"Directory '{directory}' does not exist.")
 
     # Write file
-    with open(path, 'w') as fp:
+    with open(resolved_path, 'w') as fp:
         json.dump(data, fp, indent=indent)
