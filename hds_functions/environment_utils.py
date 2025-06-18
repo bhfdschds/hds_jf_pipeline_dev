@@ -96,6 +96,9 @@ def find_project_folder(marker_file=".dbxproj", workspace_prefix="/Workspace") -
             '/Workspace/Users/alice/my_project'
     """
 
+    spark = get_spark_session()
+    dbutils = get_dbutils(spark)
+    
     context = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
     notebook_folder = f"{workspace_prefix}{os.path.dirname(context.notebookPath().get())}"
 
@@ -111,3 +114,38 @@ def find_project_folder(marker_file=".dbxproj", workspace_prefix="/Workspace") -
             pass  # Might hit a path not visible or accessible
 
         current_path = os.path.dirname(current_path)
+
+
+def get_dbutils(spark: SparkSession):
+    """
+    Returns a DBUtils object for interacting with Databricks notebook utilities.
+
+    This function tries to create a DBUtils instance using the provided Spark session.
+    If unavailable (e.g., in a Databricks notebook context), it falls back to retrieving
+    `dbutils` from the IPython user namespace.
+
+    Args:
+        spark (SparkSession): The active Spark session.
+
+    Returns:
+        dbutils (DBUtils): An instance of the Databricks utility class.
+
+    Raises:
+        RuntimeError: If dbutils is not available in the current environment.
+
+    Example:
+        >>> spark = SparkSession.builder.getOrCreate()
+        >>> dbutils = get_dbutils(spark)
+        >>> ctx = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
+        >>> print(ctx.notebookPath().get())
+    """
+    try:
+        from pyspark.dbutils import DBUtils
+        return DBUtils(spark)
+    except ImportError:
+        try:
+            import IPython
+            return IPython.get_ipython().user_ns["dbutils"]
+        except (KeyError, AttributeError):
+            raise RuntimeError("dbutils is not available in this environment.")
+
