@@ -9,5 +9,6 @@ from .curate_sex import create_sex_multisource, create_sex_individual
 from .data_aggregation import first_row
 from .data_privacy import round_counts_to_multiple, redact_low_counts
 from .data_wrangling import melt, clean_column_names, map_column_values
+from .environment_utils import find_project_folder
 from .json_utils import read_json_file, write_json_file
 from .table_management import load_table, save_table
