@@ -6,7 +6,7 @@ Utilities for environment setup in Databricks notebooks.
 Provides functions to:
 - get_spark_session(): Initialize and return a SparkSession.
 - resolve_path(): Build paths relative to the project root.
-- find_project_root(marker='.dbxproj'): Recursively locate the project root directory by searching for a marker file.
+- find_project_folder(marker='.dbxproj'): Recursively locate the project root directory by searching for a marker file.
 
 These helpers ensure reliable path resolution and environment setup in shared workspace contexts
 where notebook locations and relative path behavior can vary.
@@ -67,7 +67,7 @@ def resolve_path(path: str, repo: str = None) -> str:
     return resolved_path
 
 
-def find_project_root(marker_file=".dbxproj", workspace_prefix="/Workspace") -> str:
+def find_project_folder(marker_file=".dbxproj", workspace_prefix="/Workspace") -> str:
     """
     Walks up from the current notebook path to find the folder containing the marker file.
     Returns the absolute path to the project root.
@@ -92,7 +92,7 @@ def find_project_root(marker_file=".dbxproj", workspace_prefix="/Workspace") -> 
             /Workspace/Users/alice/my_project/.dbxproj
 
         Then:
-            >>> find_project_root()
+            >>> find_project_folder()
             '/Workspace/Users/alice/my_project'
     """
 
