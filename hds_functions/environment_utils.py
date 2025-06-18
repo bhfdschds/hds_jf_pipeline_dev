@@ -1,9 +1,17 @@
 """
-Module name: environment_utils.py.
+Module name: environment_utils.py
 
-This module provides utilities for managing the environment including path resolution and Spark session management.
+Utilities for environment setup in Databricks notebooks.
 
+Provides functions to:
+- get_spark_session(): Initialize and return a SparkSession.
+- resolve_path(): Build paths relative to the project root.
+- find_project_root(marker='.dbxproj'): Recursively locate the project root directory by searching for a marker file.
+
+These helpers ensure reliable path resolution and environment setup in shared workspace contexts
+where notebook locations and relative path behavior can vary.
 """
+
 import os
 import pkg_resources
 from pyspark.sql import SparkSession
@@ -57,3 +65,49 @@ def resolve_path(path: str, repo: str = None) -> str:
         resolved_path = path
 
     return resolved_path
+
+
+def find_project_root(marker_file=".dbxproj", workspace_prefix="/Workspace") -> str:
+    """
+    Walks up from the current notebook path to find the folder containing the marker file.
+    Returns the absolute path to the project root.
+
+    Args:
+        marker_file (str): The name of the file used to identify the project root directory. 
+            Defaults to ".dbxproj".
+        workspace_prefix (str): The base path prefix for the notebook path, usually the workspace root. 
+            Defaults to "/Workspace".
+
+    Returns:
+        str: Absolute path to the project root directory.
+
+    Raises:
+        FileNotFoundError: If the marker file is not found in any parent directories of the notebook path.
+
+    Example:
+        If your notebook is located at:
+            /Workspace/Users/alice/my_project/notebooks/analysis.ipynb
+
+        And your project has a marker file at:
+            /Workspace/Users/alice/my_project/.dbxproj
+
+        Then:
+            >>> find_project_root()
+            '/Workspace/Users/alice/my_project'
+    """
+
+    context = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
+    notebook_folder = f"{workspace_prefix}{os.path.dirname(context.notebookPath().get())}"
+
+    current_path = notebook_folder
+    while True:
+        if current_path in ("", "/"):
+            raise FileNotFoundError(f"Marker file '{marker_file}' not found in any parent directories of {notebook_folder}.")
+
+        try:
+            if marker_file in os.listdir(current_path):
+                return current_path
+        except (FileNotFoundError, PermissionError):
+            pass  # Might hit a path not visible or accessible
+
+        current_path = os.path.dirname(current_path)
