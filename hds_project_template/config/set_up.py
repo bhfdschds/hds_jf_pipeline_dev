@@ -123,3 +123,22 @@ def set_and_validate_project_folder(project_config, marker_file=".dbxproj", work
 
     os.environ["PROJECT_FOLDER"] = project_folder
     print(f"Set PROJECT_FOLDER to: {project_folder}")
+
+
+# COMMAND ----------
+
+# Save project config .json to file
+from hds_functions import write_json_file
+
+write_json_file(data=project_config, path='./config/project_config.json', indent=4)
+
+# COMMAND ----------
+# Validate project configuration schema
+from hds_functions import read_json_file
+from jsonschema import validate
+
+project_config_loaded = read_json_file(path='./config/project_config.json')
+project_config_schema = read_json_file(path='./config/project_config_schema.json')
+
+validate(instance=project_config_loaded, schema=project_config_schema)
+
