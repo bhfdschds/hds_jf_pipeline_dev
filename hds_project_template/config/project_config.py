@@ -36,4 +36,5 @@ project_config = {
 
 }
 
-
+# COMMAND ----------
+# %run ./set_up
