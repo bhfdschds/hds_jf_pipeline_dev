@@ -152,6 +152,8 @@ def set_and_validate_project_folder(project_config, marker_file=".dbxproj", work
     os.environ["PROJECT_FOLDER"] = project_folder
     print(f"Set PROJECT_FOLDER to: {project_folder}")
 
+set_and_validate_project_folder(project_config, marker_file=".dbxproj", workspace_prefix="/Workspace")
+
 
 # COMMAND ----------
 
