@@ -21,19 +21,45 @@
 import sys
 import os
 
-def add_repos_to_sys_path(dependencies):
+def add_repo_parents_to_sys_path(dependencies):
     """
-    Adds repository paths from dependencies to sys.path if not already present.
+    Adds parent directories of repositories to sys.path if not already present.
 
     Args:
         dependencies (dict): Dictionary where keys are module names and values
-                             are dicts with a 'repo' key specifying the path.
+                             are dicts with a 'repo' key specifying the absolute path
+                             to the module's source directory.
+
+    Raises:
+        ValueError: If the repo path is not absolute, its parent directory doesn't exist,
+                    or the folder name does not match the module name.
     """
-    for dep in dependencies.values():
-        repo_path = dep['repo']
-        if repo_path not in sys.path:
-            sys.path.append(repo_path)
-            print(f"Added {repo_path} to sys.path.")
+    for module_name, dep_config in dependencies.items():
+        repo_path = dep_config['repo']
+
+        if not os.path.isabs(repo_path):
+            raise ValueError(f"Path for module '{module_name}' must be absolute: {repo_path}")
+
+        parent_dir = os.path.dirname(repo_path)
+        folder_name = os.path.basename(repo_path)
+
+        if folder_name != module_name:
+            raise ValueError(
+                f"Declared module name '{module_name}' does not match actual folder name '{folder_name}' "
+                f"in repo path '{repo_path}'."
+            )
+
+        if not os.path.isdir(parent_dir):
+            raise ValueError(
+                f"Parent directory '{parent_dir}' for module '{module_name}' does not exist."
+            )
+
+        if parent_dir not in sys.path:
+            sys.path.append(parent_dir)
+            print(f"Directory '{parent_dir}' added to sys.path for module '{module_name}'.")
+        else:
+            print(f"Directory '{parent_dir}' already in sys.path for module '{module_name}'.")
+
 
 
 def check_dependencies_versions(dependencies, enforce=False):
@@ -80,7 +106,7 @@ def add_and_check_dependencies(project_config, enforce=True):
         enforce (bool): Whether to raise an error on version mismatch.
     """
     dependencies = project_config.get('dependencies', {})
-    add_repos_to_sys_path(dependencies)
+    add_repo_parents_to_sys_path(dependencies)
     check_dependencies_versions(dependencies, enforce=enforce)
 
 
