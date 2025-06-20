@@ -194,3 +194,9 @@ def validate_and_save_project_config(config, schema_path, save_path):
     # Save config
     write_json_file(data=config, path=save_path, indent=4)
     print(f"Project config saved to: {resolve_path(save_path)}")
+
+validate_and_save_project_config(
+    config=project_config,
+    schema_path="./config/schema/project_config_schema.json",
+    save_path="./config/project_config.json"
+)
