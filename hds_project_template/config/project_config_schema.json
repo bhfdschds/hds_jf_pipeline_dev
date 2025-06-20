@@ -1,0 +1,96 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "ProjectConfig",
+    "type": "object",
+    "required": [
+        "project_name",
+        "project_folder",
+        "databases",
+        "dependencies"
+    ],
+    "properties": {
+        "project_name": {
+            "type": "string",
+            "minLength": 1
+        },
+        "project_folder": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "pattern": "^/Workspace/"
+            },
+            "minItems": 1
+        },
+        "start_date": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "format": "date"
+        },
+        "end_date": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "format": "date"
+        },
+        "users": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "format": "email"
+            }
+        },
+        "databases": {
+            "type": "object",
+            "required": [
+                "live_view",
+                "archived_tables",
+                "user_workspace",
+                "lookup_tables",
+                "byod"
+            ],
+            "properties": {
+                "live_view": {
+                    "type": "string"
+                },
+                "archived_tables": {
+                    "type": "string"
+                },
+                "user_workspace": {
+                    "type": "string"
+                },
+                "lookup_tables": {
+                    "type": "string"
+                },
+                "byod": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "dependencies": {
+            "type": "object",
+            "patternProperties": {
+                "^.*$": {
+                    "type": "object",
+                    "required": [
+                        "repo"
+                    ],
+                    "properties": {
+                        "repo": {
+                            "type": "string",
+                            "pattern": "^/Workspace/"
+                        },
+                        "version": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            }
+        }
+    },
+    "additionalProperties": false
+}
