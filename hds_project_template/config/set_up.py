@@ -95,6 +95,8 @@ def check_dependencies_versions(dependencies, enforce=False):
                 raise RuntimeError(message)
             else:
                 print(f"Warning: {message}")
+        else:
+            print(f"Version match for {name}: {expected_version}")
 
 
 def add_and_check_dependencies(project_config, enforce=True):
