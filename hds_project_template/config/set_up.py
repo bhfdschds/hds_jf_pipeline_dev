@@ -157,18 +157,36 @@ set_and_validate_project_folder(project_config, marker_file=".dbxproj", workspac
 
 # COMMAND ----------
 
-# Save project config .json to file
-from hds_functions import write_json_file
+def validate_and_save_project_config(config, schema_path, save_path):
+    """
+    Validates a project config against a schema and writes it to disk if valid.
 
-write_json_file(data=project_config, path='./config/project_config.json', indent=4)
+    Args:
+        config (dict): The project configuration to validate.
+        schema_path (str): Path to the JSON schema file.
+        save_path (str): File path to save the config as JSON.
 
-# COMMAND ----------
-# Validate project configuration schema
-from hds_functions import read_json_file
-from jsonschema import validate
+    Raises:
+        RuntimeError: If the schema file is missing or validation fails.
+    """
+    import os
+    from jsonschema import validate
+    from jsonschema.exceptions import ValidationError
+    from hds_functions import read_json_file, write_json_file, resolve_path
 
-project_config_loaded = read_json_file(path='./config/project_config.json')
-project_config_schema = read_json_file(path='./config/project_config_schema.json')
+    # Load schema
+    try:
+        schema = read_json_file(path=schema_path)
+    except FileNotFoundError:
+        raise RuntimeError(f"Project config schema file not found: {schema_path}")
 
-validate(instance=project_config_loaded, schema=project_config_schema)
+    # Validate config
+    try:
+        validate(instance=config, schema=schema)
+        print("Project config validated successfully.")
+    except ValidationError as e:
+        raise RuntimeError(f"Project config validation failed: {e.message}")
 
+    # Save config
+    write_json_file(data=config, path=save_path, indent=4)
+    print(f"Project config saved to: {resolve_path(save_path)}")
