@@ -86,3 +86,40 @@ def add_and_check_dependencies(project_config, enforce=True):
 
 add_and_check_dependencies(project_config, enforce=True)
 
+# COMMAND ----------
+
+# Find project folder root and check
+
+from hds_functions import find_project_folder
+
+def set_and_validate_project_folder(project_config, marker_file=".dbxproj", workspace_prefix="/Workspace"):
+    """
+    Finds and validates the project root directory, and sets it as an environment variable.
+
+    This function:
+    - Locates the project root using a marker file.
+    - Ensures the detected path is one of the allowed folders in project_config.
+    - Sets it as the PROJECT_FOLDER environment variable.
+
+    Args:
+        project_config (dict): The full project configuration containing a 'project_folder' key.
+        marker_file (str): Name of a file that marks the project root.
+        workspace_prefix (str): Expected prefix for paths in the workspace.
+
+    Raises:
+        RuntimeError: If the project folder can't be found or is not among allowed folders.
+    """
+    try:
+        project_folder = find_project_folder(marker_file=marker_file, workspace_prefix=workspace_prefix)
+    except Exception as e:
+        raise RuntimeError(f"Failed to locate project folder: {e}")
+
+    allowed_folders = project_config.get("project_folder", [])
+
+    if project_folder not in allowed_folders:
+        raise RuntimeError(
+            f"Detected project folder '{project_folder}' is not in the allowed list:\n{allowed_folders}"
+        )
+
+    os.environ["PROJECT_FOLDER"] = project_folder
+    print(f"Set PROJECT_FOLDER to: {project_folder}")
