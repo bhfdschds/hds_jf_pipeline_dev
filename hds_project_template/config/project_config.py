@@ -37,4 +37,4 @@ project_config = {
 }
 
 # COMMAND ----------
-# %run ./set_up
+# MAGIC %run ./set_up
