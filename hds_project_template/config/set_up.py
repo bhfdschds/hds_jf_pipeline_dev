@@ -18,8 +18,6 @@
 # COMMAND ----------
 
 # Load and check dependencies
-import sys
-import os
 
 def add_repo_parents_to_sys_path(dependencies):
     """
@@ -34,6 +32,9 @@ def add_repo_parents_to_sys_path(dependencies):
         ValueError: If the repo path is not absolute, its parent directory doesn't exist,
                     or the folder name does not match the module name.
     """
+    import sys
+    import os
+
     for module_name, dep_config in dependencies.items():
         repo_path = dep_config['repo']
 
@@ -118,7 +119,7 @@ add_and_check_dependencies(project_config, enforce=True)
 
 # Find project folder root and check
 
-from hds_functions import find_project_folder
+
 
 def set_and_validate_project_folder(project_config, marker_file=".dbxproj", workspace_prefix="/Workspace"):
     """
@@ -137,6 +138,9 @@ def set_and_validate_project_folder(project_config, marker_file=".dbxproj", work
     Raises:
         RuntimeError: If the project folder can't be found or is not among allowed folders.
     """
+    from hds_functions import find_project_folder
+    import os
+
     try:
         project_folder = find_project_folder(marker_file=marker_file, workspace_prefix=workspace_prefix)
     except Exception as e:
